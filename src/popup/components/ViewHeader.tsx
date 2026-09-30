@@ -7,10 +7,12 @@ export function ViewHeader({
   title,
   onBack,
   right,
+  backDisabled,
 }: {
   title: string;
   onBack: () => void;
   right?: ReactNode;
+  backDisabled?: boolean;
 }) {
   return (
     <header className={HEADER_CLASS}>
@@ -21,6 +23,7 @@ export function ViewHeader({
         aria-label="Back"
         title="Back"
         onClick={onBack}
+        disabled={backDisabled}
       >
         <ArrowLeft aria-hidden />
       </Button>

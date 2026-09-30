@@ -63,6 +63,8 @@ export function Settings({
   const [editingProvider, setEditingProvider] = useState<ProviderId>(config.activeProvider);
   const [form, setForm] = useState<Form>(() => formFor(config.activeProvider, config.settings));
   const [showKey, setShowKey] = useState(false);
+  // Stays true from "Save & verify" through the success redirect, so neither Back nor a second
+  // Save can race the pending navigation; only a failed check unlocks the form.
   const [verifying, setVerifying] = useState(false);
   const [status, setStatus] = useState<Status | null>(
     config.loadError ? { tone: "error", text: "Could not load saved provider settings." } : null,
@@ -70,8 +72,15 @@ export function Settings({
   const keyInput = useRef<HTMLInputElement>(null);
   const customInput = useRef<HTMLInputElement>(null);
   const redirect = useRef<number | undefined>(undefined);
+  const mounted = useRef(false);
 
-  useEffect(() => () => window.clearTimeout(redirect.current), []);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      window.clearTimeout(redirect.current);
+    };
+  }, []);
 
   const provider = PROVIDERS[editingProvider];
   const hasSavedKey = Boolean(config.settings[editingProvider]?.apiKey);
@@ -107,13 +116,14 @@ export function Settings({
     setStatus({ tone: "muted", text: `Checking ${label}…`, pending: true });
     try {
       const reply = await sendToBackground("verifyProvider", { provider: target, apiKey, model });
+      // The user verified this key, so it is stored even if the popup view has closed meanwhile.
       await save(target, { apiKey, model, verifiedAt: Date.now() });
+      if (!mounted.current) return;
       setStatus({ tone: "success", text: reply.message || `${label} is connected.` });
-      window.clearTimeout(redirect.current);
       redirect.current = window.setTimeout(() => onNavigate("home"), SUCCESS_REDIRECT_MS);
     } catch (error) {
+      if (!mounted.current) return;
       setStatus({ tone: "error", text: errorMessage(error, BACKGROUND_FALLBACKS.verifyProvider) });
-    } finally {
       setVerifying(false);
     }
   }
@@ -128,7 +138,7 @@ export function Settings({
 
   return (
     <>
-      <ViewHeader title="AI provider" onBack={() => onNavigate("home")} />
+      <ViewHeader title="AI provider" onBack={() => onNavigate("home")} backDisabled={verifying} />
       <ViewBody>
         <div className={FIELD_CLASS}>
           <Label htmlFor="provider" className={LABEL_CLASS}>
@@ -243,7 +253,7 @@ export function Settings({
             onClick={saveAndVerify}
             disabled={verifying}
           >
-            {verifying ? <LoaderCircle className="animate-spin" aria-hidden /> : null}
+            {status?.pending ? <LoaderCircle className="animate-spin" aria-hidden /> : null}
             Save &amp; verify
           </Button>
           <Button

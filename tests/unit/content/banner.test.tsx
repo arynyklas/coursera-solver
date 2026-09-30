@@ -91,6 +91,20 @@ describe("banner", () => {
     expect(screen.queryByRole("status")).toBeNull();
   });
 
+  // F10: guards content.js:309 in v1.1.0 (c2f8b71), whose caller-owned setTimeout(hideBanner, 4000)
+  // hid whatever banner was showing when it fired.
+  it("does not let an earlier success's auto-hide remove a later banner", () => {
+    const { show, flush } = setup();
+
+    show({ tone: "success", title: "Quiz solved", autoHideMs: 4000 });
+    flush(3000);
+    show({ tone: "info", title: "Completing materials" });
+    flush(1301);
+
+    expect(screen.getByRole("status").textContent).toContain("Completing materials");
+    expect(screen.getByRole("status").getAttribute("data-leaving")).toBe("false");
+  });
+
   // F10: guards presentation.js:98 in v1.1.0 (c2f8b71): createBannerPresenter had no close control.
   it("removes the banner after the fade when Dismiss is clicked", async () => {
     const { show, flush } = setup();

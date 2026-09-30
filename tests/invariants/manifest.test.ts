@@ -61,6 +61,6 @@ describe("built manifest", () => {
 
   it("exposes nothing to pages except the banner stylesheet", () => {
     const resources = (manifest.web_accessible_resources ?? []).flatMap((entry) => entry.resources);
-    expect(resources.every((resource) => resource === "content-scripts/coursera.css")).toBe(true);
+    expect(resources).toEqual(["content-scripts/coursera.css"]);
   });
 });

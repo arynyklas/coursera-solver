@@ -5,6 +5,7 @@ import { isProviderId, PROVIDERS } from "@/ai/providers";
 import { buildVerificationRequest } from "@/ai/requests";
 import { parseAndValidateAnswers, parseAndValidateDialogueReply } from "@/ai/responses";
 import { ANSWER_SCHEMA, DIALOGUE_SCHEMA } from "@/ai/schemas";
+import { withKeepAlive } from "@/background/keepalive";
 import type { BackgroundRequests, Handlers } from "@/shared/messaging";
 import { getActiveProvider, getProviderSettings, migrateLegacyGeminiKey } from "@/shared/storage";
 import type { ProviderId } from "@/shared/types";
@@ -47,16 +48,18 @@ export function createBackgroundHandlers(deps: BackgroundDeps = {}): Handlers<Ba
         throw new Error("No quiz questions were provided to the AI service.");
       }
       const { provider, apiKey, model } = await loadConfiguredProvider();
-      const rawText = await callProvider(
-        {
-          provider,
-          apiKey,
-          model,
-          prompt: createQuizPrompt(questions),
-          schema: ANSWER_SCHEMA,
-          schemaName: "quiz_answers",
-        },
-        deps,
+      const rawText = await withKeepAlive(() =>
+        callProvider(
+          {
+            provider,
+            apiKey,
+            model,
+            prompt: createQuizPrompt(questions),
+            schema: ANSWER_SCHEMA,
+            schemaName: "quiz_answers",
+          },
+          deps,
+        ),
       );
       return parseAndValidateAnswers(rawText, questions);
     },
@@ -66,16 +69,18 @@ export function createBackgroundHandlers(deps: BackgroundDeps = {}): Handlers<Ba
         throw new Error("No active Coursera dialogue question was found.");
       }
       const { provider, apiKey, model } = await loadConfiguredProvider();
-      const rawText = await callProvider(
-        {
-          provider,
-          apiKey,
-          model,
-          prompt: createDialoguePrompt(messages, currentQuestion),
-          schema: DIALOGUE_SCHEMA,
-          schemaName: "dialogue_reply",
-        },
-        deps,
+      const rawText = await withKeepAlive(() =>
+        callProvider(
+          {
+            provider,
+            apiKey,
+            model,
+            prompt: createDialoguePrompt(messages, currentQuestion),
+            schema: DIALOGUE_SCHEMA,
+            schemaName: "dialogue_reply",
+          },
+          deps,
+        ),
       );
       return parseAndValidateDialogueReply(rawText);
     },
@@ -87,7 +92,7 @@ export function createBackgroundHandlers(deps: BackgroundDeps = {}): Handlers<Ba
 
       const label = PROVIDERS[provider].label;
       const spec = buildVerificationRequest(provider, String(apiKey).trim(), String(model).trim());
-      const result = await requestJSON(spec, provider, deps);
+      const result = await withKeepAlive(() => requestJSON(spec, provider, deps));
       if (!result.ok) {
         throw new Error(providerErrorMessage(provider, result.status, result.data));
       }

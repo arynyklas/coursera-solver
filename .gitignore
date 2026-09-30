@@ -1,2 +1,6 @@
-test.js
-.agents/
+node_modules/
+.output/
+.wxt/
+test-results/
+playwright-report/
+blob-report/

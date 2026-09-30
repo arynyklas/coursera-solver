@@ -14,6 +14,7 @@ type ChatCompletionResponse =
   | null
   | undefined;
 type RawAnswer = { questionNumber?: unknown; correctOptions?: unknown } | null | undefined;
+type ModelListResponse = { data?: unknown } | null | undefined;
 
 export function extractResponseText(providerId: ProviderId, data: unknown): string {
   if (providerId === "gemini") {
@@ -40,6 +41,16 @@ export function extractResponseText(providerId: ProviderId, data: unknown): stri
   }
   const content = (data as ChatCompletionResponse)?.choices?.[0]?.message?.content;
   return content ? String(content) : "";
+}
+
+/** Model ids from an OpenAI-compatible `/models` body, each once, in the server's order. */
+export function parseModelList(data: unknown): string[] {
+  const list = (data as ModelListResponse)?.data;
+  if (!Array.isArray(list)) return [];
+  const ids = list
+    .map((item) => (item as { id?: unknown } | null)?.id)
+    .filter((id): id is string => typeof id === "string" && id.trim() !== "");
+  return [...new Set(ids)];
 }
 
 function cleanJSONText(rawText: string): string {

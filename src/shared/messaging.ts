@@ -27,8 +27,12 @@ export interface BackgroundRequests {
     response: string;
   };
   verifyProvider: {
-    request: { provider: ProviderId; apiKey: string; model: string };
+    request: { provider: ProviderId; apiKey: string; model: string; baseUrl?: string };
     response: { message: string };
+  };
+  listModels: {
+    request: { provider: ProviderId; apiKey: string; baseUrl: string };
+    response: { models: string[] };
   };
 }
 
@@ -64,6 +68,7 @@ export const BACKGROUND_FALLBACKS: Record<keyof BackgroundRequests, string> = {
   solveQuestions: "Failed to fetch from AI.",
   draftDialogueReply: "Failed to draft the dialogue answer.",
   verifyProvider: "Connection check failed.",
+  listModels: "Could not load the model list.",
 };
 
 export function errorMessage(error: unknown, fallback: string): string {

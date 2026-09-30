@@ -1,4 +1,5 @@
 import type { ProviderId } from "@/shared/types";
+import { normalizeServerUrl } from "./endpoint";
 import { getProvider } from "./providers";
 import { ANSWER_SCHEMA, type JsonSchema } from "./schemas";
 
@@ -23,10 +24,9 @@ function authHeaders(providerId: ProviderId, apiKey: string): Record<string, str
       "anthropic-dangerous-direct-browser-access": "true",
     };
   }
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${apiKey}`,
-  };
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  // A self-hosted server started without --api-key accepts requests that carry no key.
+  if (apiKey || !getProvider(providerId).selfHosted) headers.Authorization = `Bearer ${apiKey}`;
   if (providerId === "openrouter") {
     headers["X-OpenRouter-Title"] = "Coursera Auto Solver";
   }
@@ -38,9 +38,20 @@ export function buildGenerationRequest(
   apiKey: string,
   model: string,
   prompt: string,
-  options: { structured?: boolean; schema?: JsonSchema; schemaName?: string } = {},
+  options: {
+    structured?: boolean;
+    schema?: JsonSchema;
+    schemaName?: string;
+    /** The server URL of a self-hosted provider. */
+    baseUrl?: string;
+  } = {},
 ): RequestSpec {
-  const { structured = true, schema = ANSWER_SCHEMA, schemaName = "quiz_answers" } = options;
+  const {
+    structured = true,
+    schema = ANSWER_SCHEMA,
+    schemaName = "quiz_answers",
+    baseUrl = "",
+  } = options;
   getProvider(providerId);
   const headers = authHeaders(providerId, apiKey);
 
@@ -92,19 +103,22 @@ export function buildGenerationRequest(
     };
   }
 
-  const baseUrls = {
-    xai: "https://api.x.ai/v1",
-    deepseek: "https://api.deepseek.com",
-    groq: "https://api.groq.com/openai/v1",
-    openrouter: "https://openrouter.ai/api/v1",
-  };
+  const apiRoot =
+    providerId === "vllm"
+      ? normalizeServerUrl(baseUrl)
+      : {
+          xai: "https://api.x.ai/v1",
+          deepseek: "https://api.deepseek.com",
+          groq: "https://api.groq.com/openai/v1",
+          openrouter: "https://openrouter.ai/api/v1",
+        }[providerId];
   const body: Record<string, unknown> = {
     model,
     messages: [{ role: "user", content: prompt }],
     stream: false,
   };
 
-  if (providerId === "xai" || providerId === "openrouter") {
+  if (providerId === "xai" || providerId === "openrouter" || providerId === "vllm") {
     body.response_format = structured
       ? { type: "json_schema", json_schema: { name: schemaName, strict: true, schema } }
       : { type: "json_object" };
@@ -119,8 +133,20 @@ export function buildGenerationRequest(
   }
 
   return {
-    url: `${baseUrls[providerId]}/chat/completions`,
+    url: `${apiRoot}/chat/completions`,
     options: { method: "POST", headers, body: JSON.stringify(body) },
+  };
+}
+
+/** The model list of a self-hosted server. Listing needs the same key as generating. */
+export function buildModelListRequest(
+  providerId: ProviderId,
+  apiKey: string,
+  baseUrl: string,
+): RequestSpec {
+  return {
+    url: `${normalizeServerUrl(baseUrl)}/models`,
+    options: { method: "GET", headers: authHeaders(providerId, apiKey) },
   };
 }
 
@@ -128,8 +154,12 @@ export function buildVerificationRequest(
   providerId: ProviderId,
   apiKey: string,
   model: string,
+  baseUrl = "",
 ): VerificationRequestSpec {
   getProvider(providerId);
+  if (providerId === "vllm") {
+    return { ...buildModelListRequest(providerId, apiKey, baseUrl), expectedModel: model };
+  }
   const headers = authHeaders(providerId, apiKey);
   const metadataUrls: Partial<Record<ProviderId, string>> = {
     gemini: `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}`,
@@ -146,10 +176,10 @@ export function buildVerificationRequest(
     return spec;
   }
 
-  const baseUrl =
+  const apiRoot =
     providerId === "deepseek" ? "https://api.deepseek.com" : "https://openrouter.ai/api/v1";
   return {
-    url: `${baseUrl}/chat/completions`,
+    url: `${apiRoot}/chat/completions`,
     options: {
       method: "POST",
       headers,

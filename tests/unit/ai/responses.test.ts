@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractResponseText, parseAndValidateAnswers } from "@/ai/responses";
+import { extractResponseText, parseAndValidateAnswers, parseModelList } from "@/ai/responses";
 import type { Question } from "@/shared/types";
 
 function question(questionNumber: number, type: Question["type"], options: string[]): Question {
@@ -86,5 +86,28 @@ describe("parseAndValidateAnswers", () => {
       ),
     ).toThrow(/duplicate question number/);
     expect(() => parseAndValidateAnswers("not-json", questions)).toThrow(/invalid JSON/);
+  });
+});
+
+describe("parseModelList", () => {
+  it("returns each served model id once, in server order", () => {
+    expect(
+      parseModelList({
+        object: "list",
+        data: [
+          { id: "Qwen/Qwen3-8B", object: "model", root: "Qwen/Qwen3-8B" },
+          { id: "sql-lora", object: "model", parent: "Qwen/Qwen3-8B" },
+          { id: "Qwen/Qwen3-8B" },
+          { id: 5 },
+          null,
+          { id: "  " },
+        ],
+      }),
+    ).toEqual(["Qwen/Qwen3-8B", "sql-lora"]);
+  });
+
+  it("reads a body without a model list as no models", () => {
+    expect(parseModelList({ detail: "Not Found" })).toEqual([]);
+    expect(parseModelList(null)).toEqual([]);
   });
 });

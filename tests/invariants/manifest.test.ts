@@ -16,6 +16,7 @@ interface Manifest {
   permissions?: string[];
   optional_permissions?: string[];
   host_permissions?: string[];
+  optional_host_permissions?: string[];
   content_scripts?: ContentScript[];
   web_accessible_resources?: { resources: string[] }[];
 }
@@ -48,8 +49,12 @@ describe("built manifest", () => {
     expect(manifest.optional_permissions ?? []).toEqual([]);
   });
 
-  it("grants exactly Coursera and the seven AI provider origins", () => {
+  it("grants exactly Coursera and the seven hosted AI provider origins", () => {
     expect([...(manifest.host_permissions ?? [])].sort()).toEqual([...HOSTS].sort());
+  });
+
+  it("can ask for a self-hosted server's origin at runtime, without an install warning", () => {
+    expect(manifest.optional_host_permissions).toEqual(["http://*/*", "https://*/*"]);
   });
 
   it("injects one isolated and one document_start main-world script on course routes only", () => {

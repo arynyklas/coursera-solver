@@ -4,6 +4,7 @@ import { fakeBrowser } from "wxt/testing/fake-browser";
 import {
   clearProviderSettings,
   getActiveProvider,
+  isProviderReady,
   migrateLegacyGeminiKey,
   saveProviderSettings,
 } from "@/shared/storage";
@@ -61,5 +62,17 @@ describe("provider storage", () => {
       aiProvider: "groq",
       aiProviderSettings: {},
     });
+  });
+
+  it("counts a vLLM server as ready without a key, but a hosted provider only with one", () => {
+    const server = "http://localhost:8000/v1";
+    expect(isProviderReady("vllm", { apiKey: "", model: "Qwen/Qwen3-8B", baseUrl: server })).toBe(
+      true,
+    );
+    expect(isProviderReady("vllm", { apiKey: "k", model: "", baseUrl: server })).toBe(false);
+    expect(isProviderReady("vllm", { apiKey: "k", model: "Qwen/Qwen3-8B" })).toBe(false);
+    expect(isProviderReady("groq", { apiKey: "gsk_x", model: "" })).toBe(true);
+    expect(isProviderReady("groq", { apiKey: "", model: "openai/gpt-oss-20b" })).toBe(false);
+    expect(isProviderReady("groq", undefined)).toBe(false);
   });
 });

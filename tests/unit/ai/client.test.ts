@@ -58,4 +58,17 @@ describe("callProvider", () => {
       "Could not reach OpenAI. Check your connection and try again.",
     );
   });
+
+  it("names the self-hosted server it could not reach", async () => {
+    const fetchStub = vi.fn<typeof fetch>().mockRejectedValue(new TypeError("Failed to fetch"));
+    await expect(
+      callProvider(
+        { ...call, provider: "vllm", apiKey: "", baseUrl: "http://gpu.lan:8000/v1" },
+        { fetch: fetchStub },
+      ),
+    ).rejects.toThrow(
+      "Could not reach the vLLM server at gpu.lan:8000. Check the server URL and that the server is running.",
+    );
+    expect(String(fetchStub.mock.calls[0]?.[0])).toBe("http://gpu.lan:8000/v1/chat/completions");
+  });
 });

@@ -22,5 +22,7 @@ export default defineConfig({
       "https://api.groq.com/*",
       "https://openrouter.ai/*",
     ],
+    // vLLM: the popup asks for the entered server's origin alone, when the user loads its models.
+    optional_host_permissions: ["http://*/*", "https://*/*"],
   },
 });

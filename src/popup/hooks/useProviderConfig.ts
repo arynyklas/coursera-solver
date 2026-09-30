@@ -1,15 +1,18 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { isProviderId, modelLabel } from "@/ai/providers";
 import {
   activeProviderItem,
   clearProviderSettings,
   getActiveProvider,
   getProviderSettings,
+  isProviderReady,
   migrateLegacyGeminiKey,
   type ProviderSettings,
   type ProviderSettingsMap,
   providerSettingsItem,
+  type ServerDraft,
   saveProviderSettings,
+  serverDraftItem,
 } from "@/shared/storage";
 import type { ProviderId } from "@/shared/types";
 
@@ -19,10 +22,14 @@ export interface ProviderConfigState {
   loadError: boolean;
   activeProvider: ProviderId;
   settings: ProviderSettingsMap;
-  /** The active provider has a saved key. */
+  /** The active provider's saved settings can call it (`isProviderReady`). */
   activeReady: boolean;
+  /** Server input left behind when Chrome's host-access prompt closed the popup. */
+  draft: ServerDraft | null;
   save(provider: ProviderId, settings: ProviderSettings): Promise<void>;
   clear(provider: ProviderId): Promise<void>;
+  /** Forgets the draft once Settings has taken it over. */
+  clearDraft(): void;
 }
 
 interface State {
@@ -30,9 +37,16 @@ interface State {
   loadError: boolean;
   activeProvider: ProviderId;
   settings: ProviderSettingsMap;
+  draft: ServerDraft | null;
 }
 
-const INITIAL: State = { loading: true, loadError: false, activeProvider: "gemini", settings: {} };
+const INITIAL: State = {
+  loading: true,
+  loadError: false,
+  activeProvider: "gemini",
+  settings: {},
+  draft: null,
+};
 
 export function useProviderConfig(): ProviderConfigState {
   const [state, setState] = useState<State>(INITIAL);
@@ -56,11 +70,14 @@ export function useProviderConfig(): ProviderConfigState {
     (async () => {
       try {
         await migrateLegacyGeminiKey();
-        const [activeProvider, settings] = await Promise.all([
+        const [activeProvider, settings, draft] = await Promise.all([
           getActiveProvider(),
           getProviderSettings(),
+          serverDraftItem.getValue(),
         ]);
-        if (!cancelled) setState({ loading: false, loadError: false, activeProvider, settings });
+        if (!cancelled) {
+          setState({ loading: false, loadError: false, activeProvider, settings, draft });
+        }
       } catch {
         if (!cancelled) setState((current) => ({ ...current, loading: false, loadError: true }));
       }
@@ -73,11 +90,17 @@ export function useProviderConfig(): ProviderConfigState {
     };
   }, []);
 
+  const clearDraft = useCallback(() => {
+    setState((current) => ({ ...current, draft: null }));
+    void serverDraftItem.removeValue();
+  }, []);
+
   return {
     ...state,
-    activeReady: Boolean(state.settings[state.activeProvider]?.apiKey),
+    activeReady: isProviderReady(state.activeProvider, state.settings[state.activeProvider]),
     save: saveProviderSettings,
     clear: clearProviderSettings,
+    clearDraft,
   };
 }
 

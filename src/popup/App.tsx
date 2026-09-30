@@ -19,7 +19,7 @@ export function App() {
     <Popup
       config={config}
       context={context}
-      initialView={config.activeReady ? "home" : "settings"}
+      initialView={config.draft || !config.activeReady ? "settings" : "home"}
     />
   );
 }

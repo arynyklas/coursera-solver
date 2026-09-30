@@ -10,10 +10,16 @@ export interface ProviderConfig {
   id: ProviderId;
   label: string;
   keyPlaceholder: string;
-  keyUrl: string;
+  /** Where to create an API key; self-hosted servers have none. */
+  keyUrl?: string;
   defaultModel: string;
   supportsStrictSchema: boolean;
   models: ProviderModel[];
+  /**
+   * An OpenAI-compatible server the user runs: they enter its URL, the API key is optional, and
+   * the models come from the server's `/models` list instead of `models`.
+   */
+  selfHosted?: boolean;
 }
 
 export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
@@ -110,6 +116,15 @@ export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
       { id: "google/gemini-3.1-flash-lite", label: "Gemini 3.1 Flash-Lite", hint: "Fast" },
       { id: "openrouter/free", label: "OpenRouter Free", hint: "Free router" },
     ],
+  },
+  vllm: {
+    id: "vllm",
+    label: "vLLM",
+    keyPlaceholder: "Optional",
+    defaultModel: "",
+    supportsStrictSchema: true,
+    models: [],
+    selfHosted: true,
   },
 };
 

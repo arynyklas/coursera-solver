@@ -6,8 +6,21 @@ export interface ProviderSettings {
   apiKey: string;
   model: string;
   verifiedAt?: number;
+  /** The normalized server URL of a self-hosted provider. */
+  baseUrl?: string;
 }
 export type ProviderSettingsMap = Partial<Record<ProviderId, ProviderSettings>>;
+
+/**
+ * Self-hosted server input saved just before Chrome's host-access prompt, which can close the
+ * popup. Settings resumes from it on the next open.
+ */
+export interface ServerDraft {
+  provider: ProviderId;
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+}
 
 export const activeProviderItem = storage.defineItem<string>("local:aiProvider", {
   fallback: "gemini",
@@ -16,6 +29,16 @@ export const providerSettingsItem = storage.defineItem<ProviderSettingsMap>(
   "local:aiProviderSettings",
   { fallback: {} },
 );
+export const serverDraftItem = storage.defineItem<ServerDraft | null>("session:serverDraft", {
+  fallback: null,
+});
+
+/** Saved settings can call the provider: a server and model when self-hosted, else a key. */
+export function isProviderReady(provider: ProviderId, settings: ProviderSettings | undefined) {
+  if (!settings) return false;
+  if (PROVIDERS[provider].selfHosted) return Boolean(settings.baseUrl && settings.model);
+  return Boolean(settings.apiKey);
+}
 
 export async function getActiveProvider(): Promise<ProviderId> {
   const value = await activeProviderItem.getValue();

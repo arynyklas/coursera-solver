@@ -5,7 +5,8 @@ export type ProviderId =
   | "xai"
   | "deepseek"
   | "groq"
-  | "openrouter";
+  | "openrouter"
+  | "vllm";
 
 export type SupportedQuestionType =
   | "single_answer"

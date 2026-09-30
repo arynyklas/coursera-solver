@@ -49,6 +49,7 @@ test("opens on settings without a key and on the off-course home with one", asyn
     "DeepSeek",
     "Groq",
     "OpenRouter",
+    "vLLM",
   ]);
   await page.keyboard.press("Escape");
 

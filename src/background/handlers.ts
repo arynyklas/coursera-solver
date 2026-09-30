@@ -2,12 +2,21 @@ import { callProvider, requestJSON } from "@/ai/client";
 import { providerErrorMessage } from "@/ai/errors";
 import { createDialoguePrompt, createQuizPrompt } from "@/ai/prompts";
 import { isProviderId, PROVIDERS } from "@/ai/providers";
-import { buildVerificationRequest } from "@/ai/requests";
-import { parseAndValidateAnswers, parseAndValidateDialogueReply } from "@/ai/responses";
+import { buildModelListRequest, buildVerificationRequest } from "@/ai/requests";
+import {
+  parseAndValidateAnswers,
+  parseAndValidateDialogueReply,
+  parseModelList,
+} from "@/ai/responses";
 import { ANSWER_SCHEMA, DIALOGUE_SCHEMA } from "@/ai/schemas";
 import { withKeepAlive } from "@/background/keepalive";
 import type { BackgroundRequests, Handlers } from "@/shared/messaging";
-import { getActiveProvider, getProviderSettings, migrateLegacyGeminiKey } from "@/shared/storage";
+import {
+  getActiveProvider,
+  getProviderSettings,
+  isProviderReady,
+  migrateLegacyGeminiKey,
+} from "@/shared/storage";
 import type { ProviderId } from "@/shared/types";
 
 export interface BackgroundDeps {
@@ -20,6 +29,8 @@ export async function loadAIConfiguration(): Promise<{
   label: string;
   apiKey: string;
   model: string;
+  baseUrl: string;
+  ready: boolean;
 }> {
   await migrateLegacyGeminiKey();
   const provider = await getActiveProvider();
@@ -30,13 +41,16 @@ export async function loadAIConfiguration(): Promise<{
     label: config.label,
     apiKey: settings?.apiKey || "",
     model: settings?.model || config.defaultModel,
+    baseUrl: settings?.baseUrl || "",
+    ready: isProviderReady(provider, settings),
   };
 }
 
 async function loadConfiguredProvider() {
   const configuration = await loadAIConfiguration();
-  if (!configuration.apiKey) {
-    throw new Error(`Add and verify a ${configuration.label} API key in the extension popup.`);
+  if (!configuration.ready) {
+    const missing = PROVIDERS[configuration.provider].selfHosted ? "server" : "API key";
+    throw new Error(`Add and verify a ${configuration.label} ${missing} in the extension popup.`);
   }
   return configuration;
 }
@@ -47,13 +61,14 @@ export function createBackgroundHandlers(deps: BackgroundDeps = {}): Handlers<Ba
       if (!Array.isArray(questions) || questions.length === 0) {
         throw new Error("No quiz questions were provided to the AI service.");
       }
-      const { provider, apiKey, model } = await loadConfiguredProvider();
+      const { provider, apiKey, model, baseUrl } = await loadConfiguredProvider();
       const rawText = await withKeepAlive(() =>
         callProvider(
           {
             provider,
             apiKey,
             model,
+            baseUrl,
             prompt: createQuizPrompt(questions),
             schema: ANSWER_SCHEMA,
             schemaName: "quiz_answers",
@@ -68,13 +83,14 @@ export function createBackgroundHandlers(deps: BackgroundDeps = {}): Handlers<Ba
       if (!currentQuestion || !String(currentQuestion).trim()) {
         throw new Error("No active Coursera dialogue question was found.");
       }
-      const { provider, apiKey, model } = await loadConfiguredProvider();
+      const { provider, apiKey, model, baseUrl } = await loadConfiguredProvider();
       const rawText = await withKeepAlive(() =>
         callProvider(
           {
             provider,
             apiKey,
             model,
+            baseUrl,
             prompt: createDialoguePrompt(messages, currentQuestion),
             schema: DIALOGUE_SCHEMA,
             schemaName: "dialogue_reply",
@@ -85,27 +101,44 @@ export function createBackgroundHandlers(deps: BackgroundDeps = {}): Handlers<Ba
       return parseAndValidateDialogueReply(rawText);
     },
 
-    async verifyProvider({ provider, apiKey, model }) {
+    async verifyProvider({ provider, apiKey, model, baseUrl }) {
       if (!isProviderId(provider)) throw new Error("Choose a supported AI provider.");
-      if (!apiKey || !String(apiKey).trim()) throw new Error("Enter an API key first.");
+      const { label, selfHosted } = PROVIDERS[provider];
+      const key = String(apiKey ?? "").trim();
+      if (!key && !selfHosted) throw new Error("Enter an API key first.");
       if (!model || !String(model).trim()) throw new Error("Choose or enter a model first.");
 
-      const label = PROVIDERS[provider].label;
-      const spec = buildVerificationRequest(provider, String(apiKey).trim(), String(model).trim());
+      const chosenModel = String(model).trim();
+      const spec = buildVerificationRequest(provider, key, chosenModel, baseUrl);
       const result = await withKeepAlive(() => requestJSON(spec, provider, deps));
       if (!result.ok) {
         throw new Error(providerErrorMessage(provider, result.status, result.data));
       }
 
-      if (spec.expectedModel) {
-        const list = (result.data as { data?: unknown } | null)?.data;
-        const availableModels = Array.isArray(list) ? (list as Array<{ id?: unknown } | null>) : [];
-        if (!availableModels.some((item) => item?.id === spec.expectedModel)) {
-          throw new Error(`The selected ${label} model is unavailable for this account.`);
-        }
+      if (spec.expectedModel && !parseModelList(result.data).includes(spec.expectedModel)) {
+        throw new Error(
+          selfHosted
+            ? `The ${label} server does not serve ${spec.expectedModel}.`
+            : `The selected ${label} model is unavailable for this account.`,
+        );
       }
 
       return { message: `${label} is connected.` };
+    },
+
+    async listModels({ provider, apiKey, baseUrl }) {
+      if (!isProviderId(provider)) throw new Error("Choose a supported AI provider.");
+      const { label, selfHosted } = PROVIDERS[provider];
+      if (!selfHosted) throw new Error(`${label} has a fixed model list.`);
+
+      const spec = buildModelListRequest(provider, String(apiKey ?? "").trim(), baseUrl);
+      const result = await withKeepAlive(() => requestJSON(spec, provider, deps));
+      if (!result.ok) {
+        throw new Error(providerErrorMessage(provider, result.status, result.data));
+      }
+      const models = parseModelList(result.data);
+      if (models.length === 0) throw new Error(`The ${label} server lists no models.`);
+      return { models };
     },
   };
 }

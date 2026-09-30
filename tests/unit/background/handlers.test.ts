@@ -56,15 +56,84 @@ describe("background handlers", () => {
     );
   });
 
+  it("answers through the saved vLLM server without a key", async () => {
+    await browser.storage.local.set({
+      aiProvider: "vllm",
+      aiProviderSettings: {
+        vllm: { apiKey: "", model: "Qwen/Qwen3-8B", baseUrl: "http://gpu.lan:8000/v1" },
+      },
+    });
+    const answers = JSON.stringify({ answers: [{ questionNumber: 1, correctOptions: ["A"] }] });
+    const fetchStub = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ choices: [{ message: { content: answers } }] }), {
+        status: 200,
+      }),
+    );
+
+    await expect(
+      createBackgroundHandlers({ fetch: fetchStub }).solveQuestions({ questions }, sender),
+    ).resolves.toEqual([{ questionNumber: 1, correctOptions: ["A"] }]);
+    expect(String(fetchStub.mock.calls[0]?.[0])).toBe("http://gpu.lan:8000/v1/chat/completions");
+    expect(JSON.parse(String(fetchStub.mock.calls[0]?.[1]?.body)).model).toBe("Qwen/Qwen3-8B");
+  });
+
+  it("asks for a vLLM server when none is saved", async () => {
+    await browser.storage.local.set({ aiProvider: "vllm" });
+    const handlers = createBackgroundHandlers({ fetch: vi.fn<typeof fetch>() });
+    await expect(handlers.solveQuestions({ questions }, sender)).rejects.toThrow(
+      "Add and verify a vLLM server in the extension popup.",
+    );
+  });
+
+  describe("listModels", () => {
+    const list = (stub: typeof fetch, provider: ProviderId = "vllm") =>
+      createBackgroundHandlers({ fetch: stub }).listModels(
+        { provider, apiKey: "token-abc", baseUrl: "http://gpu.lan:8000" },
+        sender,
+      );
+
+    it("returns the models a vLLM server lists, asking with its key", async () => {
+      const stub = vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(JSON.stringify({ data: [{ id: "Qwen/Qwen3-8B" }, { id: "sql-lora" }] }), {
+          status: 200,
+        }),
+      );
+      await expect(list(stub)).resolves.toEqual({ models: ["Qwen/Qwen3-8B", "sql-lora"] });
+      expect(String(stub.mock.calls[0]?.[0])).toBe("http://gpu.lan:8000/v1/models");
+      expect(new Headers(stub.mock.calls[0]?.[1]?.headers).get("Authorization")).toBe(
+        "Bearer token-abc",
+      );
+    });
+
+    it("reports a server that lists no models", async () => {
+      const stub = vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(new Response(JSON.stringify({ data: [] }), { status: 200 }));
+      await expect(list(stub)).rejects.toThrow("The vLLM server lists no models.");
+    });
+
+    it("refuses a provider with a fixed model list", async () => {
+      const stub = vi.fn<typeof fetch>();
+      await expect(list(stub, "openai")).rejects.toThrow("OpenAI has a fixed model list.");
+      expect(stub).not.toHaveBeenCalled();
+    });
+  });
+
   describe("verifyProvider", () => {
     const verify = (
-      request: { provider: string; apiKey: string; model: string },
+      request: { provider: string; apiKey: string; model: string; baseUrl?: string },
       stub?: typeof fetch,
     ) =>
       createBackgroundHandlers({ fetch: stub ?? vi.fn<typeof fetch>() }).verifyProvider(
         { ...request, provider: request.provider as ProviderId },
         sender,
       );
+    const servedModels = () =>
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(
+          new Response(JSON.stringify({ data: [{ id: "Qwen/Qwen3-8B" }] }), { status: 200 }),
+        );
 
     it("rejects an unsupported provider", async () => {
       await expect(verify({ provider: "nope", apiKey: "k", model: "m" })).rejects.toThrow(
@@ -104,6 +173,33 @@ describe("background handlers", () => {
       await expect(
         verify({ provider: "gemini", apiKey: "AIza-key", model: "gemini-3.7-flash" }, stub),
       ).resolves.toEqual({ message: "Gemini is connected." });
+    });
+
+    it("connects a keyless vLLM server that serves the chosen model", async () => {
+      const stub = servedModels();
+      await expect(
+        verify(
+          { provider: "vllm", apiKey: "", model: "Qwen/Qwen3-8B", baseUrl: "http://gpu.lan:8000" },
+          stub,
+        ),
+      ).resolves.toEqual({ message: "vLLM is connected." });
+      expect(String(stub.mock.calls[0]?.[0])).toBe("http://gpu.lan:8000/v1/models");
+      expect(new Headers(stub.mock.calls[0]?.[1]?.headers).has("Authorization")).toBe(false);
+    });
+
+    it("rejects a model the vLLM server does not serve", async () => {
+      await expect(
+        verify(
+          { provider: "vllm", apiKey: "", model: "Qwen/Qwen3-32B", baseUrl: "http://gpu.lan:8000" },
+          servedModels(),
+        ),
+      ).rejects.toThrow("The vLLM server does not serve Qwen/Qwen3-32B.");
+    });
+
+    it("asks for the vLLM server URL", async () => {
+      await expect(
+        verify({ provider: "vllm", apiKey: "", model: "Qwen/Qwen3-8B" }, servedModels()),
+      ).rejects.toThrow("Enter the server URL with http:// or https://");
     });
   });
 });

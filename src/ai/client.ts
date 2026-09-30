@@ -17,7 +17,8 @@ export async function requestJSON(
   providerId: ProviderId,
   deps: ClientDeps = {},
 ): Promise<{ ok: boolean; status: number; data: unknown }> {
-  const label = getProvider(providerId).label;
+  const provider = getProvider(providerId);
+  const label = provider.label;
   const timeoutMs = deps.timeoutMs ?? AI_TIMEOUT_MS;
   const doFetch = deps.fetch ?? fetch;
   const controller = new AbortController();
@@ -37,7 +38,11 @@ export async function requestJSON(
       response = await doFetch(spec.url, { ...spec.options, signal: controller.signal });
     } catch {
       if (timedOut) throw timeoutError();
-      throw new Error(`Could not reach ${label}. Check your connection and try again.`);
+      throw new Error(
+        provider.selfHosted
+          ? `Could not reach the ${label} server at ${new URL(spec.url).host}. Check the server URL and that the server is running.`
+          : `Could not reach ${label}. Check your connection and try again.`,
+      );
     }
 
     let rawBody: string;
@@ -70,14 +75,21 @@ export async function callProvider(
     prompt: string;
     schema: JsonSchema;
     schemaName: string;
+    /** The server URL of a self-hosted provider. */
+    baseUrl?: string;
   },
   deps: ClientDeps = {},
 ): Promise<string> {
-  const { provider: providerId, apiKey, model, prompt, schema, schemaName } = call;
+  const { provider: providerId, apiKey, model, prompt, schema, schemaName, baseUrl } = call;
   const provider = getProvider(providerId);
   const structured = provider.supportsStrictSchema;
   let result = await requestJSON(
-    buildGenerationRequest(providerId, apiKey, model, prompt, { structured, schema, schemaName }),
+    buildGenerationRequest(providerId, apiKey, model, prompt, {
+      structured,
+      schema,
+      schemaName,
+      baseUrl,
+    }),
     providerId,
     deps,
   );
@@ -92,6 +104,7 @@ export async function callProvider(
         structured: false,
         schema,
         schemaName,
+        baseUrl,
       }),
       providerId,
       deps,

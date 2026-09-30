@@ -6,6 +6,8 @@ import { fakeBrowser } from "wxt/testing/fake-browser";
 import { App } from "@/popup/App";
 import { BusyProvider } from "@/popup/hooks/busy";
 import type * as Messaging from "@/shared/messaging";
+import { type BackgroundRequests, sendToBackground } from "@/shared/messaging";
+import { serverDraftItem } from "@/shared/storage";
 
 const verify = vi.hoisted(() => ({ resolve: (_reply: { message: string }) => {} }));
 
@@ -34,6 +36,25 @@ function sleep(ms: number): Promise<void> {
   const { promise, resolve } = Promise.withResolvers<void>();
   setTimeout(resolve, ms);
   return promise;
+}
+
+type BackgroundReplies = { [K in keyof BackgroundRequests]?: BackgroundRequests[K]["response"] };
+
+function answerBackground(replies: BackgroundReplies) {
+  vi.mocked(sendToBackground).mockImplementation((async (type: keyof BackgroundRequests) => {
+    const reply = replies[type];
+    if (reply === undefined) throw new Error(`Unexpected ${type} request.`);
+    return reply;
+  }) as typeof sendToBackground);
+}
+
+/** Chrome's answer to `permissions.request` or `permissions.contains`. */
+function stubPermissions(method: "request" | "contains", answer: Promise<boolean>) {
+  // vi.spyOn types the last overload (callback form, returns void); the popup uses the promise form.
+  const spy = vi.spyOn(browser.permissions, method) as unknown as Mock<
+    (permissions: { origins?: string[] }) => Promise<boolean>
+  >;
+  return spy.mockReturnValue(answer);
 }
 
 describe("provider settings", () => {
@@ -121,5 +142,140 @@ describe("provider settings", () => {
     });
     await sleep(1000);
     expect(timers).not.toHaveBeenCalledWith(expect.any(Function), 750);
+  });
+
+  describe("vLLM server", () => {
+    beforeEach(async () => {
+      // No saved server yet, so the popup opens on the vLLM settings.
+      await browser.storage.local.set({ aiProvider: "vllm" });
+    });
+
+    it("asks Chrome for the server's origin, loads its models and saves the chosen one", async () => {
+      const request = stubPermissions("request", Promise.resolve(true));
+      answerBackground({
+        listModels: { models: ["Qwen/Qwen3-8B", "sql-lora"] },
+        verifyProvider: { message: "vLLM is connected." },
+      });
+      const user = userEvent.setup();
+      renderPopup();
+
+      await user.type(await screen.findByLabelText("Server URL"), "http://localhost:8000");
+      await user.click(screen.getByRole("button", { name: "Load models" }));
+
+      expect(request).toHaveBeenCalledWith({ origins: ["http://localhost:8000/*"] });
+      await screen.findByText("2 models available.");
+      expect(sendToBackground).toHaveBeenCalledWith("listModels", {
+        provider: "vllm",
+        apiKey: "",
+        baseUrl: "http://localhost:8000/v1",
+      });
+      expect(screen.getByRole("combobox", { name: "Model" }).textContent).toContain(
+        "Qwen/Qwen3-8B",
+      );
+
+      await user.click(screen.getByRole("button", { name: "Save & verify" }));
+      await screen.findByText("vLLM is connected.");
+      expect(sendToBackground).toHaveBeenLastCalledWith("verifyProvider", {
+        provider: "vllm",
+        apiKey: "",
+        model: "Qwen/Qwen3-8B",
+        baseUrl: "http://localhost:8000/v1",
+      });
+      const stored = await browser.storage.local.get(null);
+      expect(stored.aiProvider).toBe("vllm");
+      expect(stored.aiProviderSettings).toEqual({
+        vllm: {
+          apiKey: "",
+          model: "Qwen/Qwen3-8B",
+          baseUrl: "http://localhost:8000/v1",
+          verifiedAt: expect.any(Number),
+        },
+      });
+    });
+
+    it("loads nothing when Chrome is denied access to the server", async () => {
+      stubPermissions("request", Promise.resolve(false));
+      const user = userEvent.setup();
+      renderPopup();
+
+      await user.type(await screen.findByLabelText("Server URL"), "http://localhost:8000");
+      await user.click(screen.getByRole("button", { name: "Load models" }));
+
+      await screen.findByText("Allow access to localhost:8000 to use this server.");
+      expect(sendToBackground).not.toHaveBeenCalled();
+    });
+
+    it("resumes the server setup when Chrome's access prompt closed the popup", async () => {
+      // The prompt never answers the closed popup.
+      const prompt = Promise.withResolvers<boolean>();
+      stubPermissions("request", prompt.promise);
+      const user = userEvent.setup();
+      const closedPopup = renderPopup();
+      await user.type(await screen.findByLabelText("Server URL"), "http://gpu.lan:8000/v1");
+      await user.type(screen.getByLabelText("API key"), "token-abc");
+      await user.click(screen.getByRole("button", { name: "Load models" }));
+      closedPopup.unmount();
+
+      stubPermissions("contains", Promise.resolve(true));
+      answerBackground({ listModels: { models: ["Qwen/Qwen3-8B"] } });
+      renderPopup();
+
+      const serverUrl = (await screen.findByLabelText("Server URL")) as HTMLInputElement;
+      expect(serverUrl.value).toBe("http://gpu.lan:8000/v1");
+      expect((screen.getByLabelText("API key") as HTMLInputElement).value).toBe("token-abc");
+      await screen.findByText("1 model available.");
+      expect(sendToBackground).toHaveBeenCalledWith("listModels", {
+        provider: "vllm",
+        apiKey: "token-abc",
+        baseUrl: "http://gpu.lan:8000/v1",
+      });
+      expect(await browser.storage.session.get(null)).toEqual({});
+    });
+
+    it("reopens on the unfinished server setup even while another provider is active", async () => {
+      await browser.storage.local.set({
+        aiProvider: "gemini",
+        aiProviderSettings: {
+          gemini: { apiKey: "AIza", model: "gemini-3.7-flash", verifiedAt: 1 },
+        },
+      });
+      await serverDraftItem.setValue({
+        provider: "vllm",
+        baseUrl: "http://gpu.lan:8000/v1",
+        apiKey: "",
+        model: "",
+      });
+      stubPermissions("contains", Promise.resolve(false));
+      renderPopup();
+
+      const provider = await screen.findByRole("combobox", { name: "Provider" });
+      expect(provider.textContent).toContain("vLLM");
+      expect((screen.getByLabelText("Server URL") as HTMLInputElement).value).toBe(
+        "http://gpu.lan:8000/v1",
+      );
+      expect(sendToBackground).not.toHaveBeenCalled();
+    });
+
+    it("counts a saved server without a key as a configured provider", async () => {
+      vi.spyOn(browser.runtime, "getManifest").mockReturnValue({
+        manifest_version: 3,
+        name: "Coursera Auto Solver",
+        version: "2.0.0",
+      });
+      await browser.storage.local.set({
+        aiProviderSettings: {
+          vllm: {
+            apiKey: "",
+            model: "Qwen/Qwen3-8B",
+            baseUrl: "http://localhost:8000/v1",
+            verifiedAt: 1,
+          },
+        },
+      });
+      renderPopup();
+
+      await screen.findByRole("heading", { name: "Auto Solver" });
+      expect(screen.getByText(/Qwen\/Qwen3-8B/)).toBeTruthy();
+    });
   });
 });

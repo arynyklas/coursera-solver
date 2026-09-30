@@ -43,8 +43,9 @@ export function usePageAction<T>(
     if (!acquire(view)) return false;
     setState({ status: "running", data: null, error: "" });
     // The lock is released even if the view has closed meanwhile; only the state update is skipped.
-    latestRun
-      .current()
+    // Starting from a resolved promise turns a synchronous throw in `run` into a rejection.
+    Promise.resolve()
+      .then(() => latestRun.current())
       .then(
         (data) => {
           if (mounted.current) setState({ status: "done", data, error: "" });

@@ -1,4 +1,4 @@
-import { ExternalLink, Eye, EyeOff, LoaderCircle, type LucideProps } from "lucide-react";
+import { ExternalLink, Eye, EyeOff } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { isProviderId, PROVIDER_IDS, PROVIDERS } from "@/ai/providers";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,8 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { Note } from "@/popup/components/Note";
-import { ViewBody } from "@/popup/components/ViewBody";
+import { SpinningLoader } from "@/popup/components/SpinningLoader";
+import { HINT_CLASS, ViewBody } from "@/popup/components/ViewBody";
 import { ViewHeader } from "@/popup/components/ViewHeader";
 import type { ProviderConfigState } from "@/popup/hooks/useProviderConfig";
 import type { Navigate } from "@/popup/navigation";
@@ -27,7 +28,6 @@ const SUCCESS_REDIRECT_MS = 750;
 const FIELD_CLASS = "flex flex-col gap-[5px]";
 const LABEL_CLASS = "text-xs";
 const CONTROL_CLASS = "h-[34px] w-full rounded-md px-2.5 text-[12.5px] md:text-[12.5px]";
-const HINT_CLASS = "text-[11.5px] text-muted-foreground";
 
 interface Form {
   apiKey: string;
@@ -253,7 +253,7 @@ export function Settings({
             onClick={saveAndVerify}
             disabled={verifying}
           >
-            {status?.pending ? <LoaderCircle className="animate-spin" aria-hidden /> : null}
+            {status?.pending ? <SpinningLoader aria-hidden /> : null}
             Save &amp; verify
           </Button>
           <Button
@@ -281,8 +281,4 @@ export function Settings({
       </ViewBody>
     </>
   );
-}
-
-function SpinningLoader({ className, ...props }: LucideProps) {
-  return <LoaderCircle className={cn(className, "animate-spin")} {...props} />;
 }

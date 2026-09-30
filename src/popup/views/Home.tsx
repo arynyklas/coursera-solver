@@ -1,7 +1,6 @@
 import {
   CircleCheck,
   Copy,
-  GraduationCap,
   ListChecks,
   type LucideIcon,
   MessageSquare,
@@ -11,7 +10,7 @@ import {
 import { ActionRow } from "@/popup/components/ActionRow";
 import { ContextRow } from "@/popup/components/ContextRow";
 import { Footer } from "@/popup/components/Footer";
-import { Note } from "@/popup/components/Note";
+import { OffCourseNote } from "@/popup/components/Note";
 import { PopupHeader } from "@/popup/components/PopupHeader";
 import { ViewBody } from "@/popup/components/ViewBody";
 import type { PageContext } from "@/popup/hooks/usePageContext";
@@ -85,11 +84,7 @@ export function Home({
       <PopupHeader onOpenSettings={() => onNavigate("settings")} />
       <ViewBody>
         <ContextRow context={context} providerLabel={activeModelLabel(config)} />
-        {context.isCourse ? null : (
-          <Note tone="muted" icon={GraduationCap}>
-            Open a course on coursera.org/learn/… to use these actions.
-          </Note>
-        )}
+        {context.isCourse ? null : <OffCourseNote />}
         {SECTIONS.map((section) => (
           <section key={section.label} className="flex flex-col gap-2">
             <h2 className="text-[10.5px] font-semibold tracking-[.07em] text-muted-foreground uppercase">

@@ -1,4 +1,4 @@
-import { Check, CircleAlert, TriangleAlert } from "lucide-react";
+import { Check, CircleAlert, GraduationCap, TriangleAlert } from "lucide-react";
 import type { ComponentType, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
@@ -39,7 +39,16 @@ export function Note({
       )}
     >
       {Icon ? <Icon className="mt-px size-4 shrink-0" aria-hidden /> : null}
-      <span className="min-w-0">{children}</span>
+      <span className="min-w-0 flex-1">{children}</span>
     </div>
+  );
+}
+
+/** Shown instead of page actions when the active tab is not a course page (F9). */
+export function OffCourseNote() {
+  return (
+    <Note tone="muted" icon={GraduationCap}>
+      Open a course on coursera.org/learn/… to use these actions.
+    </Note>
   );
 }

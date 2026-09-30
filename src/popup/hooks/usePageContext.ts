@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { browser } from "wxt/browser";
+import { REFRESH_PAGE_MESSAGE } from "@/shared/messaging";
 import { courseSlugFromUrl, isCourseUrl, itemKindFromUrl } from "@/shared/urls";
 
 export interface PageContext {
@@ -19,6 +20,12 @@ function pageContext(tabId: number | null, url: string): PageContext {
     courseSlug: isCourse ? courseSlugFromUrl(url) : "",
     itemKind: isCourse ? itemKindFromUrl(url) : "",
   };
+}
+
+/** The active tab id for a page action; without one, the page must be refreshed. */
+export function requireTabId(context: PageContext): number {
+  if (context.tabId === null) throw new Error(REFRESH_PAGE_MESSAGE);
+  return context.tabId;
 }
 
 /** The active tab, read once when the popup opens; `null` until the query settles. */

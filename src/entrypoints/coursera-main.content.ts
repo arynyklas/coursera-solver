@@ -1,10 +1,13 @@
 import { defineContentScript } from "#imports";
+import { installInterceptor } from "@/main-world/interceptor";
+import { installMonacoHost } from "@/main-world/monaco-host";
 
 export default defineContentScript({
   matches: ["*://*.coursera.org/learn/*"],
   world: "MAIN",
   runAt: "document_start",
   main() {
-    // Interceptor and Monaco host land in Task 7.
+    installInterceptor(window);
+    installMonacoHost(window);
   },
 });

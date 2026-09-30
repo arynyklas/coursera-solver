@@ -145,13 +145,9 @@ export function installInterceptor(win: MainWindow): InterceptorHandle {
     Reflect.apply(originalOpen, this, args);
   };
 
-  xhrPrototype.setRequestHeader = function (
-    this: XMLHttpRequest,
-    name: string,
-    value: string,
-  ): void {
-    originalSetRequestHeader.call(this, name, value);
-    const normalizedName = String(name).toLowerCase();
+  xhrPrototype.setRequestHeader = function (this: XMLHttpRequest, ...args: unknown[]): void {
+    Reflect.apply(originalSetRequestHeader, this, args);
+    const normalizedName = String(args[0]).toLowerCase();
     if (!CAPTURED_HEADER_NAMES.has(normalizedName)) return;
 
     let state = xhrStates.get(this);
@@ -159,7 +155,7 @@ export function installInterceptor(win: MainWindow): InterceptorHandle {
       state = { method: "", url: "", headers: [] };
       xhrStates.set(this, state);
     }
-    const normalizedValue = String(value);
+    const normalizedValue = String(args[1]);
     const existingHeader = state.headers.find(([headerName]) => headerName === normalizedName);
     if (existingHeader) {
       existingHeader[1] = `${existingHeader[1]}, ${normalizedValue}`;

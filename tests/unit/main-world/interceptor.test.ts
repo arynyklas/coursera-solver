@@ -13,8 +13,10 @@ class FakeXHRBase extends EventTarget {
 
   open(_method: string, _url: string): void {}
 
-  setRequestHeader(name: string, value: string): void {
-    this.actualHeaders.push([String(name).toLowerCase(), String(value)]);
+  setRequestHeader(...args: unknown[]): void {
+    // Same arity check as the native method.
+    if (args.length < 2) throw new TypeError("2 arguments required, but only 1 present.");
+    this.actualHeaders.push([String(args[0]).toLowerCase(), String(args[1])]);
   }
 
   send(_body?: unknown): void {}
@@ -78,16 +80,19 @@ function hasKey(value: unknown, key: string): boolean {
 describe("installInterceptor", () => {
   // Ported from legacy/tests/intercept-integration.test.js:70-81.
   it("passive fetch inspection never replaces a successful page response with an interceptor error", async () => {
+    const clone = vi.fn(() => {
+      throw new Error("synthetic clone failure");
+    });
     const response = {
       url: "https://www.coursera.org/api/example.v1?slug=sample",
-      clone() {
-        throw new Error("synthetic clone failure");
-      },
+      headers: new Headers({ "content-type": "application/json" }),
+      clone,
     };
     const { win } = createWindow(async () => response);
     installInterceptor(win);
 
     await expect(win.fetch(response.url)).resolves.toBe(response);
+    expect(clone).toHaveBeenCalledTimes(1);
   });
 
   // Ported from legacy/tests/intercept-integration.test.js:83-110.
@@ -136,6 +141,22 @@ describe("installInterceptor", () => {
     expect(captures()[0].capture.csrf3Token).toBe("a, b");
   });
 
+  it("forwards the page's exact setRequestHeader arguments to the original", () => {
+    const { win, FakeXHR, captures } = createWindow(async () => ({}));
+    installInterceptor(win);
+
+    const xhr = new FakeXHR();
+    xhr.open("GET", "https://www.coursera.org/api/example.v1");
+    expect(() => xhr.setRequestHeader("x-csrf3-token")).toThrow(
+      new TypeError("2 arguments required, but only 1 present."),
+    );
+    xhr.send();
+    loadXhr(xhr, "https://www.coursera.org/api/example.v1");
+
+    expect(xhr.actualHeaders).toEqual([]);
+    expect(captures()).toEqual([]);
+  });
+
   // F6(a) guards legacy intercept.js:146-156, which awaited the clone before returning.
   it("resolves fetch before a never-settling clone read", async () => {
     const response = {
@@ -165,7 +186,8 @@ describe("installInterceptor", () => {
     expect(captures()).toHaveLength(2);
   });
 
-  // F6(c) guards legacy intercept.js, which kept no snapshot and ignored hello.
+  // F6(c) guards legacy manifest.json:12-38 with content.js:40: the ISOLATED listener ran at
+  // document_idle (no run_at), so captures posted from document_start were lost.
   it("answers hello with a token captured earlier", () => {
     const { win, FakeXHR, postMessage, dispatchMessage } = createWindow(async () => ({}));
     installInterceptor(win);

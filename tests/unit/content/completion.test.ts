@@ -60,6 +60,10 @@ function isMaterials(url: string): boolean {
   return url.includes("onDemandCourseMaterials.v2");
 }
 
+function isProgress(url: string): boolean {
+  return url.includes("onDemandCoursesProgress.v1");
+}
+
 let alertSpy: Mock;
 
 beforeEach(() => {
@@ -90,9 +94,10 @@ describe("completion course (F1)", () => {
 
     await runner.start().done;
 
-    expect(calls).toHaveLength(3);
+    expect(calls).toHaveLength(4);
     for (const { url, init } of calls) {
-      expect(url.includes("/course-a") || url.includes("slug=course-a")).toBe(true);
+      // The progress read is keyed by the internal id from the route course's own materials.
+      expect(url.includes("course-a") || url.includes("internal-a")).toBe(true);
       expect(url).not.toContain("course-b");
       expect(String(init?.body ?? "")).not.toContain("course-b");
     }
@@ -120,7 +125,13 @@ describe("completion robustness (F5)", () => {
     const summary = await runner.start().done;
 
     expect(calls.some(({ url }) => url.includes("/item/L2/"))).toBe(true);
-    expect(summary).toEqual({ total: 2, completed: 1, failed: 1, skippedLocked: 0 });
+    expect(summary).toEqual({
+      total: 2,
+      completed: 1,
+      failed: 1,
+      skippedLocked: 0,
+      alreadyCompleted: 0,
+    });
   });
 
   it("counts a non-OK item response as failed and ends on an error card", async () => {
@@ -141,7 +152,13 @@ describe("completion robustness (F5)", () => {
 
     const summary = await runner.start().done;
 
-    expect(summary).toEqual({ total: 2, completed: 1, failed: 1, skippedLocked: 0 });
+    expect(summary).toEqual({
+      total: 2,
+      completed: 1,
+      failed: 1,
+      skippedLocked: 0,
+      alreadyCompleted: 0,
+    });
     expect(last()).toEqual({
       tone: "error",
       title: "Completed 1 of 2",
@@ -166,7 +183,13 @@ describe("completion robustness (F5)", () => {
     const summary = await runner.start().done;
 
     expect(calls.some(({ init }) => String(init?.body ?? "").includes("S-locked"))).toBe(false);
-    expect(summary).toEqual({ total: 1, completed: 1, failed: 0, skippedLocked: 1 });
+    expect(summary).toEqual({
+      total: 1,
+      completed: 1,
+      failed: 0,
+      skippedLocked: 1,
+      alreadyCompleted: 0,
+    });
     expect(last()).toEqual({
       tone: "success",
       title: "Materials completed",
@@ -238,13 +261,19 @@ describe("completion requests", () => {
 
     const summary = await runner.start().done;
 
-    expect(summary).toEqual({ total: 2, completed: 2, failed: 0, skippedLocked: 0 });
+    expect(summary).toEqual({
+      total: 2,
+      completed: 2,
+      failed: 0,
+      skippedLocked: 0,
+      alreadyCompleted: 0,
+    });
     expect(calls[0]).toEqual({
       url: expect.stringContaining("slug=course-a"),
       init: { headers: { "X-CSRF3-Token": "token-1" } },
     });
     const headers = { "Content-Type": "application/json", "X-CSRF3-Token": "token-1" };
-    expect(calls.slice(1)).toEqual([
+    expect(calls.slice(2)).toEqual([
       {
         url: "https://www.coursera.org/api/opencourse.v1/user/42/course/course-a/item/L1/lecture/videoEvents/ended?autoEnroll=false",
         init: { method: "POST", headers, body: '{"contentRequestBody":{}}' },
@@ -258,6 +287,68 @@ describe("completion requests", () => {
         },
       },
     ]);
+  });
+
+  it("marks an ungraded plugin completed through a fresh widget session", async () => {
+    // content.js:566 in v1.1.0 (c2f8b71) excluded ungradedWidget, so plugins whose page only asks
+    // the learner to press "Mark as completed" stayed incomplete.
+    const { runner, calls } = setup({
+      route: (url) => {
+        if (isMaterials(url)) return json(materials([{ id: "W1", itemClass: "ungradedWidget" }]));
+        if (isProgress(url)) return json({});
+        if (url.includes("/onDemandWidgetSessions.v1/")) {
+          return json({ elements: [{ sessionId: "session-1" }] });
+        }
+        return new Response(null, { status: 204 });
+      },
+    });
+
+    const summary = await runner.start().done;
+
+    expect(summary).toEqual({
+      total: 1,
+      completed: 1,
+      failed: 0,
+      skippedLocked: 0,
+      alreadyCompleted: 0,
+    });
+    expect(calls.slice(2)).toEqual([
+      {
+        url: "https://www.coursera.org/api/onDemandWidgetSessions.v1/42~internal-a~W1?fields=sessionId",
+        init: { headers: { "X-CSRF3-Token": "token-1" } },
+      },
+      {
+        url: "https://www.coursera.org/api/onDemandWidgetProgress.v1/42~internal-a~W1",
+        init: {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", "X-CSRF3-Token": "token-1" },
+          body: JSON.stringify({ sessionId: "session-1", progressState: "Completed" }),
+        },
+      },
+    ]);
+  });
+
+  it.each([
+    ["a failed session request", json({}, 500)],
+    ["a session without an id", json({ elements: [] })],
+  ])("counts a plugin as failed without marking it after %s", async (_case, session) => {
+    const { runner, calls } = setup({
+      route: (url) => {
+        if (isMaterials(url)) return json(materials([{ id: "W1", itemClass: "ungradedWidget" }]));
+        return isProgress(url) ? json({}) : session;
+      },
+    });
+
+    const summary = await runner.start().done;
+
+    expect(summary).toEqual({
+      total: 1,
+      completed: 0,
+      failed: 1,
+      skippedLocked: 0,
+      alreadyCompleted: 0,
+    });
+    expect(calls.map(({ init }) => init?.method ?? "GET")).toEqual(["GET", "GET", "GET"]);
   });
 
   it("shows chunk progress with the failed count", async () => {
@@ -295,5 +386,117 @@ describe("completion requests", () => {
       title: "Nothing to complete",
       description: "Could not find any videos/modules to complete.",
     });
+  });
+});
+
+describe("already completed items", () => {
+  it("requests only the items the learner has not completed", async () => {
+    const { runner, calls, last } = setup({
+      route: (url) => {
+        if (isMaterials(url)) {
+          return json(
+            materials([
+              { id: "L1", itemClass: "lecture" },
+              { id: "L2", itemClass: "lecture" },
+              { id: "S1", itemClass: "supplement" },
+            ]),
+          );
+        }
+        if (isProgress(url)) {
+          return json({
+            elements: [
+              { items: { L1: { progressState: "Completed" }, L2: { progressState: "Started" } } },
+            ],
+          });
+        }
+        return json({});
+      },
+    });
+
+    const summary = await runner.start().done;
+
+    expect(calls[1]).toEqual({
+      url: "https://www.coursera.org/api/onDemandCoursesProgress.v1/42~internal-a?fields=items",
+      init: { headers: { "X-CSRF3-Token": "token-1" } },
+    });
+    expect(calls.slice(2).map(({ url, init }) => `${url} ${String(init?.body ?? "")}`)).toEqual([
+      expect.stringContaining("/item/L2/"),
+      expect.stringContaining('"itemId":"S1"'),
+    ]);
+    expect(summary).toEqual({
+      total: 2,
+      completed: 2,
+      failed: 0,
+      skippedLocked: 0,
+      alreadyCompleted: 1,
+    });
+    expect(last()).toEqual({
+      tone: "success",
+      title: "Materials completed",
+      description:
+        "2 of 2 items completed. Refresh the page to see your progress. 1 item(s) already completed.",
+      autoHideMs: 6000,
+    });
+  });
+
+  it("sends no completion request when every item is already completed", async () => {
+    const { runner, calls, last } = setup({
+      route: (url) =>
+        isMaterials(url)
+          ? json(
+              materials([
+                { id: "L1", itemClass: "lecture" },
+                { id: "W1", itemClass: "ungradedWidget" },
+              ]),
+            )
+          : json({
+              elements: [
+                {
+                  items: {
+                    L1: { progressState: "Completed" },
+                    W1: { progressState: "Completed" },
+                  },
+                },
+              ],
+            }),
+    });
+
+    const summary = await runner.start().done;
+
+    expect(calls).toHaveLength(2);
+    expect(summary).toEqual({
+      total: 0,
+      completed: 0,
+      failed: 0,
+      skippedLocked: 0,
+      alreadyCompleted: 2,
+    });
+    expect(last()).toEqual({
+      tone: "success",
+      title: "Materials already completed",
+      description: "All 2 items were already completed.",
+      autoHideMs: 6000,
+    });
+  });
+
+  it("requests every item when the learner's progress cannot be read", async () => {
+    // Coursera answers 404 for the "~" learner id that completion falls back to.
+    const { runner, calls } = setup({
+      route: (url) => {
+        if (isMaterials(url)) return json(materials([{ id: "L1", itemClass: "lecture" }]));
+        return isProgress(url) ? json({}, 404) : json({});
+      },
+    });
+
+    const summary = await runner.start().done;
+
+    expect(summary).toEqual({
+      total: 1,
+      completed: 1,
+      failed: 0,
+      skippedLocked: 0,
+      alreadyCompleted: 0,
+    });
+    expect(calls.at(-1)?.url).toContain("/item/L1/");
   });
 });

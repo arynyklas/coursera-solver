@@ -64,7 +64,7 @@ const SECTIONS: { label: string; rows: Row[] }[] = [
         view: "complete",
         icon: CircleCheck,
         title: "Complete materials",
-        description: "Mark videos & readings done",
+        description: "Mark videos, readings & plugins done",
       },
     ],
   },

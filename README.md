@@ -23,7 +23,7 @@ The extension never submits anything for you. Quiz answers are filled in for you
 
 ## ✨ Features
 
-* **⚡ Media Auto-Completer:** Marks every video and reading in the course as complete in the background, with live progress in a card on the Coursera page. Locked items are skipped, and quizzes, exams, and other graded work are never touched. No API key required!
+* **⚡ Media Auto-Completer:** Marks every video, reading, and ungraded plugin (such as lab instructions that only ask you to press **Mark as completed**) in the course as complete in the background, with live progress in a card on the Coursera page. Items you already completed and locked items are skipped, and quizzes, exams, and other graded work are never touched. No API key required!
 * **📋 Question Extractor:** Extracts the quiz and assignment questions on the page as clean JSON, ready to copy. No API key needed!
 * **🎯 Course Requirements:** Finds Coursera activities that count toward the course grade, groups them by module, and opens them directly from the popup.
 * **🤖 Multi-Provider Quiz Solver:** Fills in multiple-choice, text-input, essay, and Monaco code-expression questions with Gemini, OpenAI, Claude, xAI, DeepSeek, Groq, OpenRouter, or your own [vLLM](https://docs.vllm.ai) server. It never submits: you review the answers, then submit yourself.
@@ -51,7 +51,7 @@ You need [Bun](https://bun.sh) 1.4 and Node.js 24 to build it, and Chrome 119 or
 3. Navigate to any Coursera course page inside the `/learn/` path. The popup's actions are enabled only there.
 4. Open a Coursera quiz, choose **Solve current quiz**, and click **Solve quiz**. Progress appears in a card on the Coursera page. Review the filled answers, then submit yourself.
 5. On a Coursera Coach dialogue, choose **Fill dialogue answer** and click **Draft reply** to place a draft in the message box. The extension never clicks **Send** for you.
-6. Use **Complete materials** to mark videos and readings as complete, **Copy questions** to extract the questions, **Course requirements** to open grade-relevant work, or **Dry run** to check how the page is read.
+6. Use **Complete materials** to mark videos, readings, and ungraded plugins as complete, **Copy questions** to extract the questions, **Course requirements** to open grade-relevant work, or **Dry run** to check how the page is read.
 
 ## 🛠️ Development
 

@@ -32,13 +32,13 @@ export function Complete({
         <ContextRow context={context} providerLabel={activeModelLabel(config)} />
         {context.isCourse ? null : <OffCourseNote />}
         <p className={TEXT_CLASS}>
-          Marks every video and reading in this course as completed on Coursera. Quizzes, exams and
-          other graded work are skipped.
+          Marks every video, reading and ungraded plugin in this course as completed on Coursera.
+          Quizzes, exams and other graded work are skipped.
         </p>
         <Note tone="warning">This changes your course progress on Coursera.</Note>
         <RunButton
           icon={CircleCheck}
-          label="Complete videos & readings"
+          label="Complete videos, readings & plugins"
           loadingLabel="Working…"
           action={action}
           disabled={!context.isCourse || busy !== null}
@@ -49,7 +49,7 @@ export function Complete({
           success="Course completion started. Progress is shown on the Coursera page."
         />
         <span className={HINT_CLASS}>
-          Progress appears on the Coursera page. Locked items are skipped.
+          Progress appears on the Coursera page. Locked and already completed items are skipped.
         </span>
       </ViewBody>
     </>

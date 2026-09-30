@@ -6,8 +6,9 @@ export interface CompletionItem {
   name: string;
 }
 
-// Assignment, quiz and widget types that are never auto-completed, as in
-// content.js:566 in v1.1.0 (c2f8b71).
+// Assignment and quiz types that are never auto-completed, as in content.js:566 in v1.1.0
+// (c2f8b71). That list also skipped ungradedWidget; ungraded plugins are now completed through
+// their widget session (see src/content/completion.ts).
 export const EXCLUDED_COMPLETION_TYPES: readonly string[] = [
   "quiz",
   "exam",
@@ -16,7 +17,6 @@ export const EXCLUDED_COMPLETION_TYPES: readonly string[] = [
   "peer",
   "ungradedAssignment",
   "staffGraded",
-  "ungradedWidget",
 ];
 
 interface MaterialItem {

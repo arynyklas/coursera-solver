@@ -43,7 +43,7 @@ describe("extractAssessment", () => {
     expect(result.issues).toEqual([]);
   });
 
-  it("maps the other kinds to handles over the parsed nodes", async () => {
+  it("maps the other kinds to handles over their blocks and prompts", async () => {
     mountBasic();
 
     const { questions, handles } = await extractAssessment(document, { read: async () => "" });
@@ -54,23 +54,16 @@ describe("extractAssessment", () => {
       question: "Which option is a placeholder?",
       options: ["Option A", "Option B"],
     });
-    const radios = document.querySelectorAll('input[name="q1"]');
     expect(handles.get(1)).toEqual({
       kind: "choice",
       block: document.querySelector('[data-testid="part-Submission_MultipleChoiceQuestion"]'),
       prompt: "Which option is a placeholder?",
-      multiple: false,
-      options: [
-        { text: "Option A", input: radios[0] },
-        { text: "Option B", input: radios[1] },
-      ],
     });
-    expect(handles.get(2)).toMatchObject({ kind: "choice", multiple: true });
+    expect(handles.get(2)).toMatchObject({ kind: "choice" });
     expect(handles.get(3)).toEqual({
       kind: "text",
       block: document.querySelector('[data-testid="part-Submission_TextQuestion"]'),
       prompt: "Enter placeholder text.",
-      field: document.querySelector('input[type="text"]'),
     });
   });
 

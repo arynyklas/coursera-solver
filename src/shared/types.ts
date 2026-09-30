@@ -118,29 +118,11 @@ export interface CourseRequirementsResult {
   summary: RequirementsSummary;
 }
 
-// `prompt` is the prompt parsed at extraction; applying writes only while the block still shows it.
+// A handle identifies a question block and the prompt parsed at extraction. Applying re-parses the
+// block for fresh nodes and writes only while it still shows that prompt and kind.
 export type QuestionHandle =
-  | {
-      kind: "choice";
-      block: HTMLElement;
-      prompt: string;
-      multiple: boolean;
-      options: { text: string; input: HTMLInputElement }[];
-    }
-  | {
-      kind: "text";
-      block: HTMLElement;
-      prompt: string;
-      field: HTMLInputElement | HTMLTextAreaElement;
-    }
-  | { kind: "essay"; block: HTMLElement; prompt: string; editor: HTMLElement }
-  | {
-      kind: "code";
-      block: HTMLElement;
-      prompt: string;
-      modelUri: string;
-      expectedValue: string;
-    };
+  | { kind: "choice" | "text" | "essay"; block: HTMLElement; prompt: string }
+  | { kind: "code"; block: HTMLElement; prompt: string; modelUri: string; expectedValue: string };
 
 export interface ExtractedAssessment {
   questions: Question[];

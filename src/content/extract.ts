@@ -36,7 +36,7 @@ export async function extractAssessment(
     const question: Question = { questionNumber, type, question: prompt, options };
     if (handle.kind !== "code") {
       questions.push(question);
-      handles.set(questionNumber, { ...handle, prompt });
+      handles.set(questionNumber, { kind: handle.kind, block: handle.block, prompt });
       continue;
     }
 

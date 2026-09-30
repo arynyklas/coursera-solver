@@ -36,6 +36,7 @@ describe("extractAssessment", () => {
     expect(result.handles.get(4)).toEqual({
       kind: "code",
       block: document.querySelector('[data-testid="part-Submission_CodeExpressionQuestion"]'),
+      prompt: "Inspect placeholder code.",
       modelUri: "inmemory://model/example",
       expectedValue: "console.log(1)",
     });
@@ -57,6 +58,7 @@ describe("extractAssessment", () => {
     expect(handles.get(1)).toEqual({
       kind: "choice",
       block: document.querySelector('[data-testid="part-Submission_MultipleChoiceQuestion"]'),
+      prompt: "Which option is a placeholder?",
       multiple: false,
       options: [
         { text: "Option A", input: radios[0] },
@@ -67,6 +69,7 @@ describe("extractAssessment", () => {
     expect(handles.get(3)).toEqual({
       kind: "text",
       block: document.querySelector('[data-testid="part-Submission_TextQuestion"]'),
+      prompt: "Enter placeholder text.",
       field: document.querySelector('input[type="text"]'),
     });
   });

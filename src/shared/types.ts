@@ -118,16 +118,29 @@ export interface CourseRequirementsResult {
   summary: RequirementsSummary;
 }
 
+// `prompt` is the prompt parsed at extraction; applying writes only while the block still shows it.
 export type QuestionHandle =
   | {
       kind: "choice";
       block: HTMLElement;
+      prompt: string;
       multiple: boolean;
       options: { text: string; input: HTMLInputElement }[];
     }
-  | { kind: "text"; block: HTMLElement; field: HTMLInputElement | HTMLTextAreaElement }
-  | { kind: "essay"; block: HTMLElement; editor: HTMLElement }
-  | { kind: "code"; block: HTMLElement; modelUri: string; expectedValue: string };
+  | {
+      kind: "text";
+      block: HTMLElement;
+      prompt: string;
+      field: HTMLInputElement | HTMLTextAreaElement;
+    }
+  | { kind: "essay"; block: HTMLElement; prompt: string; editor: HTMLElement }
+  | {
+      kind: "code";
+      block: HTMLElement;
+      prompt: string;
+      modelUri: string;
+      expectedValue: string;
+    };
 
 export interface ExtractedAssessment {
   questions: Question[];

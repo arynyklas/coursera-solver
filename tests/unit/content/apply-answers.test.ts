@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { applyAnswers, cleanCodeAnswer } from "@/content/apply-answers";
 import { extractAssessment } from "@/content/extract";
-import type { QuestionHandle } from "@/shared/types";
 
 const noMonaco = { replace: vi.fn(async () => {}) };
+const STALE = "The question is no longer on the page.";
 
 function prompt(text: string): string {
   return `<div id="prompt-x"><div data-testid="cml-viewer">${text}</div></div>`;
@@ -82,6 +82,104 @@ describe("applyAnswers handles (F2)", () => {
     });
     expect(first.value).toBe("");
     expect(byId<HTMLInputElement>("second").value).toBe("");
+  });
+});
+
+// FR-I1 (final review): React can remount a block's inner nodes during the AI wait (up to 120 s)
+// while the block wrapper stays connected, or reuse the wrapper for another question.
+describe("applyAnswers stale nodes", () => {
+  it("writes into the input rendered now, not the one extracted", async () => {
+    document.body.innerHTML = `
+      <section data-testid="part-Submission_TextQuestion">${prompt("Type")}<input id="old" type="text"></section>`;
+    const { handles } = await extract();
+    const old = byId<HTMLInputElement>("old");
+    const current = document.createElement("input");
+    current.type = "text";
+    old.replaceWith(current);
+
+    const result = await applyAnswers(
+      [{ questionNumber: 1, correctOptions: ["42"] }],
+      handles,
+      noMonaco,
+    );
+
+    expect(result).toEqual({ applied: [1], failures: [] });
+    expect(current.value).toBe("42");
+    expect(old.value).toBe("");
+  });
+
+  it("fails without writing when the block now shows another question", async () => {
+    document.body.innerHTML = `
+      <section data-testid="part-Submission_TextQuestion">${prompt("First")}<input id="field" type="text"></section>`;
+    const { handles } = await extract();
+    const promptNode = document.querySelector('[id^="prompt-"] [data-testid="cml-viewer"]');
+    if (!promptNode) throw new Error("missing prompt");
+    promptNode.textContent = "Another question";
+    const field = byId<HTMLInputElement>("field");
+    const events: string[] = [];
+    field.addEventListener("input", (event) => events.push(event.type));
+
+    const result = await applyAnswers(
+      [{ questionNumber: 1, correctOptions: ["answer"] }],
+      handles,
+      noMonaco,
+    );
+
+    expect(result).toEqual({ applied: [], failures: [{ questionNumber: 1, message: STALE }] });
+    expect(field.value).toBe("");
+    expect(events).toEqual([]);
+  });
+
+  it("does not type when focus cannot reach the essay editor", async () => {
+    // execCommand edits whatever holds focus, which was usually the previous essay editor.
+    vi.useFakeTimers();
+    try {
+      document.body.innerHTML = `
+        <input id="other" type="text">
+        <section data-testid="part-Submission_EssayQuestion">${prompt("Write")}<div id="editor" data-slate-editor="true" contenteditable="true"></div></section>`;
+      const { handles } = await extract();
+      byId("other").focus();
+      vi.spyOn(byId("editor"), "focus").mockImplementation(() => {});
+      const execCommand = vi.fn(() => true);
+      document.execCommand = execCommand;
+
+      const pending = applyAnswers(
+        [{ questionNumber: 1, correctOptions: ["An essay."] }],
+        handles,
+        noMonaco,
+        { slateDelayMs: 50 },
+      );
+      await vi.advanceTimersByTimeAsync(50);
+
+      await expect(pending).resolves.toEqual({
+        applied: [],
+        failures: [{ questionNumber: 1, message: "No supported answer field was found." }],
+      });
+      expect(execCommand).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+      Reflect.deleteProperty(document, "execCommand");
+    }
+  });
+
+  it("clicks the radio rendered now after the options re-render", async () => {
+    document.body.innerHTML = `
+      <section data-testid="part-Submission_MultipleChoiceQuestion">${prompt("Pick")}<div id="options">${option("A", "radio")}${option("B", "radio")}</div></section>`;
+    const { handles } = await extract();
+    const extracted = Array.from(document.querySelectorAll("input"));
+    byId("options").innerHTML = `${option("A", "radio")}${option("B", "radio")}`;
+    const [a, b] = document.querySelectorAll("input");
+
+    const result = await applyAnswers(
+      [{ questionNumber: 1, correctOptions: ["B"] }],
+      handles,
+      noMonaco,
+    );
+
+    expect(result).toEqual({ applied: [1], failures: [] });
+    expect(a?.checked).toBe(false);
+    expect(b?.checked).toBe(true);
+    expect(extracted.map((input) => input.checked)).toEqual([false, false]);
   });
 });
 
@@ -277,19 +375,10 @@ describe("applyAnswers essays", () => {
 });
 
 describe("applyAnswers code", () => {
-  function codeHandles(): Map<number, QuestionHandle> {
-    document.body.innerHTML = `<section id="block"></section>`;
-    return new Map([
-      [
-        1,
-        {
-          kind: "code",
-          block: byId("block"),
-          modelUri: "inmemory://model/1",
-          expectedValue: "print(0)",
-        },
-      ],
-    ]);
+  async function codeHandles() {
+    document.body.innerHTML = `
+      <section data-testid="part-Submission_CodeExpressionQuestion">${prompt("Code")}<div class="monaco-editor" data-uri="inmemory://model/1"></div></section>`;
+    return (await extractAssessment(document, { read: async () => "print(0)" })).handles;
   }
 
   it("replaces the model with the unfenced code", async () => {
@@ -297,7 +386,7 @@ describe("applyAnswers code", () => {
 
     const result = await applyAnswers(
       [{ questionNumber: 1, correctOptions: ["```python\nprint(1)\n```"] }],
-      codeHandles(),
+      await codeHandles(),
       { replace },
     );
 
@@ -310,7 +399,7 @@ describe("applyAnswers code", () => {
 
     const result = await applyAnswers(
       [{ questionNumber: 1, correctOptions: ["```\n  \n```"] }],
-      codeHandles(),
+      await codeHandles(),
       { replace },
     );
 
@@ -328,13 +417,29 @@ describe("applyAnswers code", () => {
 
     const result = await applyAnswers(
       [{ questionNumber: 1, correctOptions: ["print(1)"] }],
-      codeHandles(),
+      await codeHandles(),
       { replace },
     );
 
     expect(result.failures).toEqual([
       { questionNumber: 1, message: "The code changed while the AI answer was being generated." },
     ]);
+  });
+
+  // FR-I1 (final review): the block can host a different code model after SPA navigation.
+  it("fails without replacing when the block now hosts another code model", async () => {
+    const handles = await codeHandles();
+    document.querySelector(".monaco-editor")?.setAttribute("data-uri", "inmemory://model/2");
+    const replace = vi.fn(async () => {});
+
+    const result = await applyAnswers(
+      [{ questionNumber: 1, correctOptions: ["print(1)"] }],
+      handles,
+      { replace },
+    );
+
+    expect(result).toEqual({ applied: [], failures: [{ questionNumber: 1, message: STALE }] });
+    expect(replace).not.toHaveBeenCalled();
   });
 });
 

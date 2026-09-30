@@ -26,10 +26,10 @@ The extension never submits anything for you. Quiz answers are filled in for you
 * **⚡ Media Auto-Completer:** Marks every video and reading in the course as complete in the background, with live progress in a card on the Coursera page. Locked items are skipped, and quizzes, exams, and other graded work are never touched. No API key required!
 * **📋 Question Extractor:** Extracts the quiz and assignment questions on the page as clean JSON, ready to copy. No API key needed!
 * **🎯 Course Requirements:** Finds Coursera activities that count toward the course grade, groups them by module, and opens them directly from the popup.
-* **🤖 Multi-Provider Quiz Solver:** Fills in multiple-choice, text-input, essay, and Monaco code-expression questions with Gemini, OpenAI, Claude, xAI, DeepSeek, Groq, or OpenRouter. It never submits: you review the answers, then submit yourself.
+* **🤖 Multi-Provider Quiz Solver:** Fills in multiple-choice, text-input, essay, and Monaco code-expression questions with Gemini, OpenAI, Claude, xAI, DeepSeek, Groq, OpenRouter, or your own [vLLM](https://docs.vllm.ai) server. It never submits: you review the answers, then submit yourself.
 * **💬 Dialogue Answer Drafting:** Reads the current Coursera Coach question and fills a suggested answer into the message box for you to review and send.
 * **🧪 Dry Run:** Shows how the extension reads the current assessment (selector strategy, question types, and parser issues) as a copyable report. It does not call an AI provider or change anything on the page.
-* **🎛️ Model Choice:** Pick from curated current models—including multiple Gemini, GPT, and Claude generations—or enter a custom model ID.
+* **🎛️ Model Choice:** Pick from curated current models—including multiple Gemini, GPT, and Claude generations—or enter a custom model ID. For vLLM, pick from the models your server lists.
 * **🔐 Session-Aware Request Interception:** Passively observes Coursera's native Fetch and XMLHttpRequest traffic while minimizing the session metadata exposed across the extension boundary.
 
 ## 🚀 How to Use
@@ -45,8 +45,9 @@ You need [Bun](https://bun.sh) 1.4 and Node.js 24 to build it, and Chrome 119 or
 6. Click **Load unpacked** and select the `.output/chrome-mv3` folder.
 
 ### 2. Configure and Run
-1. Click the **Coursera Auto Solver** icon in your Chrome toolbar. While the active provider has no saved key, the popup opens on the **AI provider** settings.
+1. Click the **Coursera Auto Solver** icon in your Chrome toolbar. While the active provider is not set up, the popup opens on the **AI provider** settings.
 2. Choose a provider and model, paste your API key, and click **Save & verify**. The selected provider becomes active only after a successful check.
+   * For **vLLM**, enter the server URL (for example `http://localhost:8000/v1`; a bare `http://host:port` gets `/v1` added) and the API key if the server was started with `--api-key`. Click the refresh button next to **Model** to load the server's models; the first time, Chrome asks to allow access to that server. Then choose a model and click **Save & verify**. If the Chrome prompt closes the popup, open it again: it comes back to the vLLM form with your input, and loads the models once access is allowed.
 3. Navigate to any Coursera course page inside the `/learn/` path. The popup's actions are enabled only there.
 4. Open a Coursera quiz, choose **Solve current quiz**, and click **Solve quiz**. Progress appears in a card on the Coursera page. Review the filled answers, then submit yourself.
 5. On a Coursera Coach dialogue, choose **Fill dialogue answer** and click **Draft reply** to place a draft in the message box. The extension never clicks **Send** for you.
@@ -166,13 +167,14 @@ If the extension says that authentication data is missing, keep the extension en
 | DeepSeek | [DeepSeek Platform](https://platform.deepseek.com/api_keys) |
 | Groq | [GroqCloud Console](https://console.groq.com/keys) |
 | OpenRouter | [OpenRouter Keys](https://openrouter.ai/settings/keys) |
+| vLLM (self-hosted) | The key your server was started with (`vllm serve --api-key …`), or none |
 
 ## 🔒 Privacy
 
 * API keys are stored in plain text in `chrome.storage.local` in your Chrome profile. The extension does not encrypt them.
-* Keys are sent only to the provider you select. API usage, billing, quotas, and model access are controlled by your provider account.
-* **Save & verify** checks Gemini, OpenAI, Claude, xAI, and Groq keys with a model-metadata request that generates no text. For DeepSeek and OpenRouter, verification sends a real, billed completion request (capped at 8 output tokens).
-* The extension requests only the `storage` permission. Its host access is limited to Coursera and the seven provider APIs.
+* Keys are sent only to the provider you select. API usage, billing, quotas, and model access are controlled by your provider account. For vLLM, your key and the quiz content go to the server URL you enter; use `https://` for a server outside your own machine or network.
+* **Save & verify** checks Gemini, OpenAI, Claude, xAI, and Groq keys with a model-metadata request that generates no text. For DeepSeek and OpenRouter, verification sends a real, billed completion request (capped at 8 output tokens). For vLLM, it checks that the server lists the chosen model.
+* The extension requests only the `storage` permission. Its host access is limited to Coursera and the seven hosted provider APIs. For vLLM, Chrome asks for access to your server's origin alone, the first time you load its models.
 
 ## 🧩 Architecture
 

@@ -12,7 +12,8 @@ export interface CourseMaterialsDeps {
   location(): string;
 }
 
-// Port of legacy content-adapters.js:62-97; captured materials already reach the state cache.
+// Port of content-adapters.js:62-97 in v1.1.0 (c2f8b71); captured materials already reach
+// the state cache.
 export async function loadCourseMaterials({
   state,
   fetch,

@@ -9,7 +9,7 @@ import type {
   QuestionHandle,
 } from "@/shared/types";
 
-// Port of legacy/content-adapters.js:106-148 over parser handles (F2).
+// Port of content-adapters.js:106-148 in v1.1.0 (c2f8b71) over parser handles (F2).
 export async function extractAssessment(
   doc: Document,
   monaco: Pick<MonacoClient, "read">,

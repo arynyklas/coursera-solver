@@ -23,7 +23,8 @@ export function DryRun({ context, onNavigate }: { context: PageContext; onNaviga
       try {
         diagnostics = await sendToTab(tabId, "getDiagnostics", {});
       } catch {
-        // Tolerated as in legacy dry-run.js:129-135: the core report does not need diagnostics.
+        // Tolerated as in dry-run.js:129-135 in v1.1.0 (c2f8b71): the core report does not need
+        // diagnostics.
       }
       const report = buildDryRunReport(questions, issues, diagnostics);
       return { report, json: JSON.stringify(report, null, 2) };

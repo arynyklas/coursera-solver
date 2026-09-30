@@ -68,14 +68,14 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  // F5: legacy content.js:486,543,548 used alert(); the banner is the only surface.
+  // F5: content.js:486,543,548 in v1.1.0 (c2f8b71) used alert(); the banner is the only surface.
   expect(alertSpy).not.toHaveBeenCalled();
   vi.unstubAllGlobals();
 });
 
 describe("completion course (F1)", () => {
   it("requests only the course from the route, never an intercepted slug", async () => {
-    // Guards legacy content.js:80-85,467,514, where an intercepted slug= chose the course.
+    // Guards content.js:80-85,467,514 in v1.1.0 (c2f8b71): an intercepted slug= chose the course.
     const { runner, calls } = setup({
       route: (url) =>
         isMaterials(url)
@@ -101,7 +101,7 @@ describe("completion course (F1)", () => {
 
 describe("completion robustness (F5)", () => {
   it("keeps requesting after an item request rejects", async () => {
-    // Guards legacy content.js:514,536, where a rejected fetch aborted the whole loop.
+    // Guards content.js:514,536 in v1.1.0 (c2f8b71), where a rejected fetch aborted the whole loop.
     const { runner, calls } = setup({
       route: (url) => {
         if (isMaterials(url)) {
@@ -124,7 +124,7 @@ describe("completion robustness (F5)", () => {
   });
 
   it("counts a non-OK item response as failed and ends on an error card", async () => {
-    // Guards legacy content.js:536-542, which reported success without checking statuses.
+    // Guards content.js:536-542 in v1.1.0 (c2f8b71), which reported success without status checks.
     const { runner, last } = setup({
       route: (url) => {
         if (isMaterials(url)) {
@@ -150,7 +150,7 @@ describe("completion robustness (F5)", () => {
   });
 
   it("never requests a locked item and reports it as skipped", async () => {
-    // Guards legacy content.js:519-525, which posted completions for locked supplements.
+    // Guards content.js:519-525 in v1.1.0 (c2f8b71), which posted locked supplement completions.
     const { runner, calls, last } = setup({
       route: (url) =>
         isMaterials(url)
@@ -177,7 +177,7 @@ describe("completion robustness (F5)", () => {
   });
 
   it("refuses a second run while one is active", async () => {
-    // Guards legacy content.js:108-128, which started overlapping loops.
+    // Guards content.js:108-128 in v1.1.0 (c2f8b71), which started overlapping loops.
     const { runner } = setup({
       route: (url) =>
         isMaterials(url) ? json(materials([{ id: "L1", itemClass: "lecture" }])) : json({}),
@@ -190,7 +190,7 @@ describe("completion robustness (F5)", () => {
   });
 
   it("fails with the authorization text when the materials request is rejected", async () => {
-    // Guards legacy content.js:474, which parsed a 403 body as materials.
+    // Guards content.js:474 in v1.1.0 (c2f8b71), which parsed a 403 body as materials.
     const { runner, calls, last } = setup({ route: () => json({}, 403) });
 
     await expect(runner.start().done).resolves.toBeNull();

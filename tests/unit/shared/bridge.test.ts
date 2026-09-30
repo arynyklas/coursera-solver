@@ -57,7 +57,7 @@ describe("readBridgeMessage", () => {
 });
 
 describe("isValidModelUri", () => {
-  // Ported from legacy/tests/monaco-bridge.test.js:63-67.
+  // Ported from tests/monaco-bridge.test.js:63-67 in v1.1.0 (c2f8b71).
   it("accepts only Coursera in-memory Monaco model URIs", () => {
     expect(isValidModelUri("inmemory://model/42")).toBe(true);
     expect(isValidModelUri("file:///x")).toBe(false);
@@ -83,7 +83,7 @@ describe("postBridgeMessage", () => {
     expect(win.postMessage).toHaveBeenCalledWith(message, ORIGIN);
   });
 
-  // Ported from legacy/tests/monaco-bridge.test.js:106-116.
+  // Ported from tests/monaco-bridge.test.js:106-116 in v1.1.0 (c2f8b71).
   it.each(["null", ""])("requires a concrete page origin (origin %j)", (origin) => {
     const win = fakeWindow(origin);
     expect(() => postBridgeMessage(win, message)).toThrow(

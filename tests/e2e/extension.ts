@@ -114,7 +114,10 @@ export interface DomSnapshot {
   }[];
 }
 
-/** Body markup plus form-control state (legacy/tests/browser/read-only-smoke.html:25-38). */
+/**
+ * Body markup plus form-control state, as in
+ * tests/browser/read-only-smoke.html:25-38 in v1.1.0 (c2f8b71).
+ */
 export function domSnapshot(page: Page): Promise<DomSnapshot> {
   return page.evaluate(() => ({
     html: document.body.innerHTML,

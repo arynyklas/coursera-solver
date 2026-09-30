@@ -8,7 +8,8 @@ export interface SessionCredentialsStore {
   get(): SessionCredentials;
 }
 
-// Update rules from legacy content.js:62-78 (spec §4.6). Never reset on course change.
+// Update rules from content.js:62-78 in v1.1.0 (c2f8b71), spec §4.6.
+// Never reset on course change.
 export function createSessionCredentials(): SessionCredentialsStore {
   const credentials: SessionCredentials = {};
 

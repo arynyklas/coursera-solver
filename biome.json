@@ -2,14 +2,7 @@
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
   "files": {
-    "includes": [
-      "**",
-      "!**/.output",
-      "!**/.wxt",
-      "!**/node_modules",
-      "!**/legacy",
-      "!**/tests/fixtures"
-    ]
+    "includes": ["**", "!**/.output", "!**/.wxt", "!**/node_modules", "!**/tests/fixtures"]
   },
   "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },
   "css": { "parser": { "tailwindDirectives": true } },

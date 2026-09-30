@@ -24,7 +24,7 @@ function dialogueMessageText(item: Element): string {
   return innerText(copy);
 }
 
-// Ported from legacy content.js:327-378.
+// Ported from content.js:327-378 in v1.1.0 (c2f8b71).
 export function extractDialogueState(doc: Document): DialogueState {
   const root = doc.querySelector('[data-testid="coursera-coach-item"], #coursera-coach-item');
   if (!root) {

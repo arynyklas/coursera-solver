@@ -23,7 +23,7 @@ describe("isCourseUrl", () => {
 });
 
 describe("courseSlugFromUrl", () => {
-  // Ported from legacy/tests/coursera-state.test.js:19-33.
+  // Ported from tests/coursera-state.test.js:19-33 in v1.1.0 (c2f8b71).
   it("extracts course slugs from API query strings and course paths", () => {
     expect(
       courseSlugFromUrl(

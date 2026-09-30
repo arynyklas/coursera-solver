@@ -51,12 +51,12 @@ export function courseMaterialsError(status: number): string {
   return `Coursera course materials request failed with HTTP ${status}.`;
 }
 
-// Legacy content.js:467 shape; the slug is now URL-encoded.
+// Shape of content.js:467 in v1.1.0 (c2f8b71); the slug is now URL-encoded.
 export function buildCompletionMaterialsUrl(slug: string): string {
   return `https://www.coursera.org/api/onDemandCourseMaterials.v2/?q=slug&slug=${encodeURIComponent(slug)}&includes=modules,lessons,items&fields=moduleIds,onDemandCourseMaterialModules.v1(lessonIds,optional),onDemandCourseMaterialLessons.v1(elementIds,optional,itemIds),onDemandCourseMaterialItems.v2(name,isLocked,itemClass,contentSummary)`;
 }
 
-// Legacy content.js:514.
+// content.js:514 in v1.1.0 (c2f8b71).
 export function buildLectureCompletionUrl(
   userId: string,
   courseSlug: string,
@@ -65,7 +65,7 @@ export function buildLectureCompletionUrl(
   return `https://www.coursera.org/api/opencourse.v1/user/${userId}/course/${courseSlug}/item/${itemId}/lecture/videoEvents/ended?autoEnroll=false`;
 }
 
-// Legacy content.js:524.
+// content.js:524 in v1.1.0 (c2f8b71).
 export function supplementCompletionBody(userId: string, courseId: string, itemId: string): string {
   return JSON.stringify({ userId: Number.parseInt(userId, 10) || userId, courseId, itemId });
 }

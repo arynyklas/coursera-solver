@@ -6,8 +6,8 @@ import {
   summarizeParserDiagnostics,
 } from "@/coursera/diagnostics";
 
-// Ported from legacy/tests/diagnostics.test.js. Question and issue summaries are read from the
-// report, the only public surface that produces them.
+// Ported from tests/diagnostics.test.js in v1.1.0 (c2f8b71). Question and issue summaries are
+// read from the report, the only public surface that produces them.
 describe("dry-run diagnostics", () => {
   it("builds a metadata-only dry-run report", () => {
     const questions = [

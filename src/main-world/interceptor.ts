@@ -75,7 +75,7 @@ export function installInterceptor(win: MainWindow): InterceptorHandle {
     if (capture.csrf3Token) latest.csrf3Token = capture.csrf3Token;
     if (capture.userId) latest.userId = capture.userId;
     if (capture.urlUserId) latest.urlUserId = capture.urlUserId;
-    // Only item-bearing materials count, as in legacy content.js:55-56.
+    // Only item-bearing materials count, as in content.js:55-56 in v1.1.0 (c2f8b71).
     if (Array.isArray(capture.materials?.linked?.["onDemandCourseMaterialItems.v2"])) {
       latest.materials = { url: capture.url, data: capture.materials };
     }

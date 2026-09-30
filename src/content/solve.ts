@@ -20,7 +20,8 @@ export interface SolveRunner {
   start(): { done: Promise<void> };
 }
 
-// Port of legacy content.js:295-325 with the single-run guard (F5) and spec §5.1 banner copy.
+// Port of content.js:295-325 in v1.1.0 (c2f8b71) with the single-run guard (F5) and spec §5.1
+// banner copy.
 export function createSolveRunner(deps: SolveDeps): SolveRunner {
   const { doc, monaco, banner } = deps;
   let running = false;

@@ -21,7 +21,8 @@ export interface ContentRuntimeDeps {
   draftReply(messages: DialogueMessage[], currentQuestion: string): Promise<string>;
 }
 
-// Replaces the legacy listener (content.js:89-131) and read runtime with typed handlers.
+// Replaces the listener at content.js:89-131 in v1.1.0 (c2f8b71) and the read runtime with
+// typed handlers.
 export function createContentHandlers(deps: ContentRuntimeDeps): Handlers<ContentRequests> {
   const { doc, location, state } = deps;
 

@@ -22,7 +22,7 @@ interface FixtureCase {
   codeQuestions: Question[];
 }
 
-// Legacy smoke table: legacy/tests/browser/read-only-smoke.html:91-136.
+// Smoke table from tests/browser/read-only-smoke.html:91-136 in v1.1.0 (c2f8b71).
 const FIXTURES: FixtureCase[] = [
   {
     name: "basic",
@@ -111,7 +111,7 @@ for (const { name, types, selectors, codeQuestions } of FIXTURES) {
     );
     await page.goto(url);
     // Baseline before any extension message: even the readiness poll's getDiagnostics runs the
-    // parser's block selection (legacy/tests/browser/read-only-smoke.html:45-46).
+    // parser's block selection, as in tests/browser/read-only-smoke.html:45-46 in v1.1.0 (c2f8b71).
     const before = await domSnapshot(page);
     const tabId = await tabIdOf(serviceWorker, url);
     await waitForContentScript(serviceWorker, tabId);

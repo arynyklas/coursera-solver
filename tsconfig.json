@@ -5,5 +5,5 @@
     "jsx": "react-jsx",
     "paths": { "@/*": ["./src/*"] }
   },
-  "exclude": ["legacy", ".output", "node_modules"]
+  "exclude": [".output", "node_modules"]
 }

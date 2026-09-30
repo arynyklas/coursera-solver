@@ -48,7 +48,7 @@ describe("provider settings", () => {
     cleanup();
   });
 
-  // F7: legacy popup re-read the selected provider after awaiting verification (popup.js:249-268).
+  // F7: popup.js:249-268 in v1.1.0 (c2f8b71) re-read the selected provider after verification.
   it("locks the form while verifying and saves under the provider chosen at click time", async () => {
     const user = userEvent.setup();
     renderPopup();

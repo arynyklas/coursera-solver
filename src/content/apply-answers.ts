@@ -9,7 +9,7 @@ export interface ApplyResult {
 
 type ChoiceHandle = Extract<QuestionHandle, { kind: "choice" }>;
 
-// Ported from legacy content.js:208-212.
+// Ported from content.js:208-212 in v1.1.0 (c2f8b71).
 export function cleanCodeAnswer(value: string): string {
   const fenced = value.match(/^\s*```(?:[a-z0-9_+-]+)?\s*\r?\n([\s\S]*?)\r?\n```\s*$/i);
   return fenced?.[1] ?? value;
@@ -51,7 +51,7 @@ function applyChoice(handle: ChoiceHandle, correctOptions: string[]): string | n
   return null;
 }
 
-// Port of legacy content.js:214-293, writing only through extraction handles (F2).
+// Port of content.js:214-293 in v1.1.0 (c2f8b71), writing only through extraction handles (F2).
 export async function applyAnswers(
   answers: Answer[],
   handles: Map<number, QuestionHandle>,
@@ -62,7 +62,7 @@ export async function applyAnswers(
 
   for (const { questionNumber, correctOptions } of answers) {
     const [text] = correctOptions;
-    // Legacy content.js:225 skips answers without options.
+    // content.js:225 in v1.1.0 (c2f8b71) skips answers without options.
     if (text === undefined) continue;
 
     const handle = handles.get(questionNumber);

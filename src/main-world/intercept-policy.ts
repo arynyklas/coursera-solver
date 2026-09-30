@@ -1,4 +1,5 @@
-// Port of legacy/intercept-policy.js. Pure: no globals are assigned and no DOM is touched.
+// Port of intercept-policy.js in v1.1.0 (c2f8b71). Pure: no globals are assigned and no DOM
+// is touched.
 
 export const CAPTURED_HEADER_NAMES: ReadonlySet<string> = new Set([
   "x-csrf2-cookie",

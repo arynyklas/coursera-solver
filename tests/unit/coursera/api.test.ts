@@ -12,7 +12,7 @@ import {
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-// Ported from legacy/tests/coursera-api.test.js.
+// Ported from tests/coursera-api.test.js in v1.1.0 (c2f8b71).
 describe("coursera api", () => {
   it("extracts and decodes a course slug from Coursera paths", () => {
     expect(courseSlugFromPath("/learn/sample-course/home/week/1")).toBe("sample-course");

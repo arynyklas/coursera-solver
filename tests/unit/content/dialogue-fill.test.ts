@@ -26,7 +26,8 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-// Ported from legacy content.js:403-442 (fillReactTextarea, fillCurrentDialogueAnswer).
+// Ported from fillReactTextarea and fillCurrentDialogueAnswer,
+// content.js:403-442 in v1.1.0 (c2f8b71).
 describe("fillDialogueAnswer", () => {
   it("drafts from the conversation and fills the composer like typing", async () => {
     const composer = mountDialogue();

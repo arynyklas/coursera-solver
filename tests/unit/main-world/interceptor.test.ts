@@ -4,7 +4,8 @@ import { BRIDGE } from "@/shared/bridge";
 
 const ORIGIN = "https://www.coursera.org";
 
-// Mirrors the FakeXHR in legacy/tests/intercept-integration.test.js:11-32, with real listener semantics.
+// Mirrors the FakeXHR in tests/intercept-integration.test.js:11-32 in v1.1.0 (c2f8b71), with
+// real listener semantics.
 class FakeXHRBase extends EventTarget {
   actualHeaders: [string, string][] = [];
   responseURL = "";
@@ -78,7 +79,7 @@ function hasKey(value: unknown, key: string): boolean {
 }
 
 describe("installInterceptor", () => {
-  // Ported from legacy/tests/intercept-integration.test.js:70-81.
+  // Ported from tests/intercept-integration.test.js:70-81 in v1.1.0 (c2f8b71).
   it("passive fetch inspection never replaces a successful page response with an interceptor error", async () => {
     const clone = vi.fn(() => {
       throw new Error("synthetic clone failure");
@@ -95,7 +96,7 @@ describe("installInterceptor", () => {
     expect(clone).toHaveBeenCalledTimes(1);
   });
 
-  // Ported from legacy/tests/intercept-integration.test.js:83-110.
+  // Ported from tests/intercept-integration.test.js:83-110 in v1.1.0 (c2f8b71).
   it("XHR interception preserves page headers but retains only allowlisted metadata", () => {
     const { win, FakeXHR, postMessage, captures } = createWindow(async () => ({}));
     installInterceptor(win);
@@ -157,7 +158,7 @@ describe("installInterceptor", () => {
     expect(captures()).toEqual([]);
   });
 
-  // F6(a) guards legacy intercept.js:146-156, which awaited the clone before returning.
+  // F6(a) guards intercept.js:146-156 in v1.1.0 (c2f8b71), which awaited the clone first.
   it("resolves fetch before a never-settling clone read", async () => {
     const response = {
       url: "https://www.coursera.org/api/example.v1?slug=sample",
@@ -170,7 +171,7 @@ describe("installInterceptor", () => {
     await expect(win.fetch(response.url)).resolves.toBe(response);
   });
 
-  // F6(b) guards legacy intercept.js:202, which added a load listener per send without `once`.
+  // F6(b) guards intercept.js:202 in v1.1.0 (c2f8b71): each send added a non-`once` load listener.
   it("emits one capture per send on a reused XHR", () => {
     const { win, FakeXHR, captures } = createWindow(async () => ({}));
     installInterceptor(win);
@@ -186,8 +187,8 @@ describe("installInterceptor", () => {
     expect(captures()).toHaveLength(2);
   });
 
-  // F6(c) guards legacy manifest.json:12-38 with content.js:40: the ISOLATED listener ran at
-  // document_idle (no run_at), so captures posted from document_start were lost.
+  // F6(c) guards manifest.json:12-38 and content.js:40 in v1.1.0 (c2f8b71): the ISOLATED listener
+  // ran at document_idle (no run_at), so captures posted from document_start were lost.
   it("answers hello with a token captured earlier", () => {
     const { win, FakeXHR, postMessage, dispatchMessage } = createWindow(async () => ({}));
     installInterceptor(win);

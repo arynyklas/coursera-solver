@@ -2,7 +2,7 @@ import { setNativeValue } from "@/content/apply-answers";
 import { extractDialogueState } from "@/coursera/dialogue";
 import type { DialogueMessage } from "@/shared/types";
 
-// Port of legacy content.js:403-442.
+// Port of content.js:403-442 in v1.1.0 (c2f8b71).
 export async function fillDialogueAnswer(
   doc: Document,
   draftReply: (messages: DialogueMessage[], currentQuestion: string) => Promise<string>,

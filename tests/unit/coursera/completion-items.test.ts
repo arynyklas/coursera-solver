@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { extractCompletionItems } from "@/coursera/completion-items";
 
 describe("extractCompletionItems", () => {
-  // F5: guards legacy content.js:566-575, which queued locked items because it ignored isLocked.
+  // F5: guards content.js:566-575 in v1.1.0 (c2f8b71), which ignored isLocked when queueing.
   it("skips locked items and counts them, keeping the quiz exclusions", () => {
     const result = extractCompletionItems({
       linked: {

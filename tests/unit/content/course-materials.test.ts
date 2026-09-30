@@ -13,7 +13,7 @@ function fakeFetch(respond: () => Response | Promise<Response>) {
   return vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => respond());
 }
 
-// Ported from legacy/content-adapters.js:62-97 (loadCourseMaterials).
+// Ported from loadCourseMaterials, content-adapters.js:62-97 in v1.1.0 (c2f8b71).
 describe("loadCourseMaterials", () => {
   it("returns cached materials without a request", async () => {
     const state = createCourseState();

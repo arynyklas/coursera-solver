@@ -10,7 +10,7 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-// Ported from legacy/content-adapters.js:106-148 (scrapeAssessmentDetailed).
+// Ported from scrapeAssessmentDetailed, content-adapters.js:106-148 in v1.1.0 (c2f8b71).
 describe("extractAssessment", () => {
   it("reads the code editor value into the code question", async () => {
     mountBasic();

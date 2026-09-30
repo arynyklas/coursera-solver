@@ -16,7 +16,7 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-// Ported from legacy/tests/monaco-bridge.test.js:63-86 with real DOM instead of fakes.
+// Ported from tests/monaco-bridge.test.js:63-86 in v1.1.0 (c2f8b71) with real DOM instead of fakes.
 describe("Monaco editor DOM", () => {
   it("accepts only Coursera in-memory Monaco model URIs", () => {
     expect(normalizeModelUri("inmemory://model/abc")).toBe("inmemory://model/abc");

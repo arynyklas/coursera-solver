@@ -54,8 +54,8 @@ export interface DryRunReport {
   guarantees: DryRunGuarantees;
 }
 
-// Inputs are sanitized defensively, as in legacy diagnostics.js: the report must never copy
-// prompts, answers, slugs or header values, whatever shape the caller passes.
+// Inputs are sanitized defensively, as in diagnostics.js in v1.1.0 (c2f8b71): the report must
+// never copy prompts, answers, slugs or header values, whatever shape the caller passes.
 type Loose = Record<string, unknown>;
 
 const SAFE_HEADER_NAMES: ReadonlySet<string> = new Set([

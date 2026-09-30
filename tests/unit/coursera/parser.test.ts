@@ -35,7 +35,8 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-// Ported from legacy/tests/assessment-parser.test.js:36-202 with real DOM instead of fakeNode.
+// Ported from tests/assessment-parser.test.js:36-202 in v1.1.0 (c2f8b71) with real DOM
+// instead of fakeNode.
 describe("assessment block selection", () => {
   it("prefers semantic question blocks and falls back to legacy selectors", () => {
     mount(`<section id="semantic" data-testid="part-Submission_A">${prompt("Question")}</section>`);
@@ -196,7 +197,7 @@ describe("question handles", () => {
   });
 
   it("targets the Slate editor even when a text input comes first", () => {
-    // F2: legacy content.js:271 wrote into the first written-input match, the text input.
+    // F2: content.js:271 in v1.1.0 (c2f8b71) wrote into the first written input, the text input.
     const block = onlyBlock(`
       ${prompt("Write more")}
       <input id="text" type="text">
@@ -251,7 +252,7 @@ describe("parseAssessment", () => {
   });
 });
 
-// Legacy smoke table: legacy/tests/browser/read-only-smoke.html:91-136.
+// Smoke table from tests/browser/read-only-smoke.html:91-136 in v1.1.0 (c2f8b71).
 describe("assessment fixtures", () => {
   const cases = [
     {

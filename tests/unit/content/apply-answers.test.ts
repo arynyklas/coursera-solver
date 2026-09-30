@@ -35,7 +35,7 @@ afterEach(() => {
 
 describe("applyAnswers handles (F2)", () => {
   it("never writes into a block the parser did not classify", async () => {
-    // Guards legacy content.js:271, which picked hidden/number inputs and overwrote them.
+    // Guards content.js:271 in v1.1.0 (c2f8b71), which overwrote hidden/number inputs.
     document.body.innerHTML = `
       <section data-testid="part-Submission_TextQuestion">${prompt("First")}<input id="first" type="text"></section>
       <section data-testid="part-Submission_Question">${prompt("Second")}
@@ -62,7 +62,7 @@ describe("applyAnswers handles (F2)", () => {
   });
 
   it("fails a question whose block left the page after extraction", async () => {
-    // Guards legacy content.js:215, which re-queried blocks and wrote into whatever replaced them.
+    // Guards content.js:215 in v1.1.0 (c2f8b71), which re-queried blocks and wrote into new ones.
     document.body.innerHTML = `
       <section id="block-1" data-testid="part-Submission_TextQuestion">${prompt("First")}<input id="first" type="text"></section>
       <section data-testid="part-Submission_TextQuestion">${prompt("Second")}<input id="second" type="text"></section>`;
@@ -87,7 +87,7 @@ describe("applyAnswers handles (F2)", () => {
 
 describe("applyAnswers choices (F3)", () => {
   it("clicks nothing when any answer text is missing from the options", async () => {
-    // Guards legacy content.js:258-266, which clicked before checking every answer.
+    // Guards content.js:258-266 in v1.1.0 (c2f8b71), which clicked before checking every answer.
     document.body.innerHTML = `
       <section data-testid="part-Submission_MultipleChoiceQuestion">${prompt("Pick")}${option("A", "radio")}${option("B", "radio")}</section>`;
     const { handles } = await extract();
@@ -199,7 +199,7 @@ describe("applyAnswers choices (F3)", () => {
 
 describe("applyAnswers text fields (F4)", () => {
   it("writes through the prototype setter and fires input and change", async () => {
-    // Guards legacy content.js:285, which assigned .value directly (hitting React's instance setter).
+    // Guards content.js:285 in v1.1.0 (c2f8b71): a direct .value write hit React's instance setter.
     document.body.innerHTML = `
       <section data-testid="part-Submission_TextQuestion">${prompt("Type")}<input id="field" type="text"></section>`;
     const { handles } = await extract();
@@ -338,7 +338,7 @@ describe("applyAnswers code", () => {
   });
 });
 
-// Ported from legacy content.js:208-212.
+// Ported from content.js:208-212 in v1.1.0 (c2f8b71).
 describe("cleanCodeAnswer", () => {
   it("strips one surrounding Markdown fence and keeps unfenced code", () => {
     expect(cleanCodeAnswer("```js\r\nconst a = 1;\r\n```  ")).toBe("const a = 1;");

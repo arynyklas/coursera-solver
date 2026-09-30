@@ -33,7 +33,7 @@ afterEach(() => {
 
 describe("solve runner", () => {
   it("refuses a second run while one is active", async () => {
-    // Guards legacy content.js:97-100, which started overlapping solves (F5).
+    // Guards content.js:97-100 in v1.1.0 (c2f8b71), which started overlapping solves (F5).
     document.body.innerHTML = TEXT_QUESTION;
     const { promise, resolve } = Promise.withResolvers<Answer[]>();
     const { runner } = setup(() => promise);

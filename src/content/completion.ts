@@ -40,7 +40,8 @@ export interface CompletionRunner {
   start(): { done: Promise<CompletionSummary | null> };
 }
 
-// Port of legacy content.js:108-128,461-551 with the route course (F1) and robust loop (F5).
+// Port of content.js:108-128,461-551 in v1.1.0 (c2f8b71) with the route course (F1)
+// and robust loop (F5).
 export function createCompletionRunner(deps: CompletionDeps): CompletionRunner {
   const { banner } = deps;
   const title = "Completing materials";

@@ -14,7 +14,7 @@ function firstItemId(value: CourseMaterials | null): unknown {
   return (value?.linked?.["onDemandCourseMaterialItems.v2"]?.[0] as { id?: string })?.id;
 }
 
-// Ported from legacy/tests/coursera-state.test.js:35-226.
+// Ported from tests/coursera-state.test.js:35-226 in v1.1.0 (c2f8b71).
 describe("course state", () => {
   it("records only allowlisted observed header names, never values", () => {
     expect(

@@ -92,7 +92,7 @@ function spyOnSendMessage() {
 describe("sendToTab", () => {
   beforeEach(() => fakeBrowser.reset());
 
-  // F9: legacy popup.js:330/538/579 showed Chrome's raw "Receiving end does not exist" text.
+  // F9: popup.js:330/538/579 in v1.1.0 (c2f8b71) showed Chrome's raw missing-receiver text.
   it("maps a missing content script to the refresh instruction", async () => {
     spyOnSendMessage().mockRejectedValue(
       new Error("Could not establish connection. Receiving end does not exist."),

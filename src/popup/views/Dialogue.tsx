@@ -22,7 +22,7 @@ export function Dialogue({
   const { busy } = useBusy();
   const action = usePageAction("dialogue", async () => {
     const reply = await sendToTab(requireTabId(context), "fillDialogue", {});
-    // Legacy popup.js:327.
+    // popup.js:327 in v1.1.0 (c2f8b71).
     if (reply?.status !== "filled") throw new Error("The dialogue answer could not be filled.");
     return reply;
   });

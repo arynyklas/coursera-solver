@@ -70,7 +70,7 @@ describe("banner", () => {
     expect(screen.getByRole("status").textContent).toContain("New");
   });
 
-  // F10: guards legacy/content.js:323, where an error banner was hidden after 5500 ms.
+  // F10: guards content.js:323 in v1.1.0 (c2f8b71), where an error banner was hidden after 5500 ms.
   it("keeps an error visible even when an auto-hide delay is given", () => {
     const { show, flush } = setup();
 
@@ -91,7 +91,7 @@ describe("banner", () => {
     expect(screen.queryByRole("status")).toBeNull();
   });
 
-  // F10: guards legacy/presentation.js createBannerPresenter, which had no close control.
+  // F10: guards presentation.js:98 in v1.1.0 (c2f8b71): createBannerPresenter had no close control.
   it("removes the banner after the fade when Dismiss is clicked", async () => {
     const { show, flush } = setup();
     const user = userEvent.setup();

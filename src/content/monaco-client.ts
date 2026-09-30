@@ -14,7 +14,8 @@ export interface MonacoClient {
   replace(modelUri: string, expectedValue: string, value: string): Promise<void>;
 }
 
-// Port of legacy/monaco-bridge.js:63-116 and content.js:149-179, with both read and replace.
+// Port of monaco-bridge.js:63-116 and content.js:149-179 in v1.1.0 (c2f8b71), with both read
+// and replace.
 export function createMonacoClient(
   win: Window,
   options: { timeoutMs?: number } = {},

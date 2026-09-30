@@ -1,4 +1,4 @@
-// Ported from legacy/tests/intercept-policy.test.js.
+// Ported from tests/intercept-policy.test.js in v1.1.0 (c2f8b71).
 import { describe, expect, it } from "vitest";
 import {
   filterRequestHeaders,

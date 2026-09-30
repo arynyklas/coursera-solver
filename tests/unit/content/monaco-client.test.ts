@@ -40,7 +40,8 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-// Ported from legacy/tests/monaco-bridge.test.js:88-148; the new client supports read and replace.
+// Ported from tests/monaco-bridge.test.js:88-148 in v1.1.0 (c2f8b71); the new client supports
+// read and replace.
 describe("createMonacoClient", () => {
   it("rejects a foreign model URI for read and replace without posting", async () => {
     const page = fakeWindow();

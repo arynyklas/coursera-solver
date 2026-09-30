@@ -24,7 +24,7 @@ type MonacoWindow = Window &
     monaco?: { editor?: { getModels?: () => MonacoModel[] } };
   };
 
-// Port of legacy/intercept.js:61-136.
+// Port of intercept.js:61-136 in v1.1.0 (c2f8b71).
 export function installMonacoHost(win: Window & typeof globalThis): void {
   const host = win as MonacoWindow;
 

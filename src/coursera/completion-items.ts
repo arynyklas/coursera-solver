@@ -6,7 +6,8 @@ export interface CompletionItem {
   name: string;
 }
 
-// Assignment, quiz and widget types that are never auto-completed (legacy content.js:566).
+// Assignment, quiz and widget types that are never auto-completed, as in
+// content.js:566 in v1.1.0 (c2f8b71).
 export const EXCLUDED_COMPLETION_TYPES: readonly string[] = [
   "quiz",
   "exam",
@@ -26,7 +27,8 @@ interface MaterialItem {
   contentSummary?: { typeName?: string };
 }
 
-// Ported extractVideoAndReadingIds (legacy content.js:554-595) plus the F5 locked skip.
+// Ported extractVideoAndReadingIds from content.js:554-595 in v1.1.0 (c2f8b71), plus the F5
+// locked skip.
 export function extractCompletionItems(materials: CourseMaterials): {
   items: CompletionItem[];
   skippedLocked: number;

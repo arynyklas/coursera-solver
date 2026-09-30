@@ -20,7 +20,7 @@ const fixture = JSON.parse(
   readFileSync("tests/fixtures/course-materials-confirmed.json", "utf8"),
 ) as Fixture;
 
-// Ported from legacy/tests/course-requirements.test.js.
+// Ported from tests/course-requirements.test.js in v1.1.0 (c2f8b71).
 describe("course requirements", () => {
   it("maps known Coursera activity types to stable routes", () => {
     expect(requirementRoute("quiz")).toBe("quiz");

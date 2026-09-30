@@ -7,7 +7,7 @@ const apiKey = "test-secret";
 const prompt = "Return JSON.";
 
 describe("buildGenerationRequest", () => {
-  // Ported from legacy/tests/ai-providers.test.js:27-42.
+  // Ported from tests/ai-providers.test.js:27-42 in v1.1.0 (c2f8b71).
   it("builds authenticated generation requests for every provider", () => {
     for (const providerId of PROVIDER_IDS) {
       const provider = PROVIDERS[providerId];
@@ -27,7 +27,7 @@ describe("buildGenerationRequest", () => {
     }
   });
 
-  // Ported from legacy/tests/ai-providers.test.js:44-52.
+  // Ported from tests/ai-providers.test.js:44-52 in v1.1.0 (c2f8b71).
   it("uses the OpenAI Responses API with strict JSON Schema", () => {
     const request = buildGenerationRequest("openai", apiKey, "gpt-5.6-terra", prompt, {
       structured: true,
@@ -42,7 +42,7 @@ describe("buildGenerationRequest", () => {
 });
 
 describe("shouldRetryWithoutSchema", () => {
-  // Ported from legacy/tests/ai-providers.test.js:118-122.
+  // Ported from tests/ai-providers.test.js:118-122 in v1.1.0 (c2f8b71).
   it("falls back only for structured-output compatibility errors", () => {
     expect(
       shouldRetryWithoutSchema("openai", 400, { error: { message: "Unsupported json_schema" } }),
@@ -57,7 +57,7 @@ describe("shouldRetryWithoutSchema", () => {
 });
 
 describe("buildVerificationRequest", () => {
-  // Ported from legacy/tests/ai-providers.test.js:124-136.
+  // Ported from tests/ai-providers.test.js:124-136 in v1.1.0 (c2f8b71).
   it("builds low-cost verification requests", () => {
     const openAI = buildVerificationRequest("openai", apiKey, "gpt-5.6-terra");
     expect(openAI.options.method).toBe("GET");

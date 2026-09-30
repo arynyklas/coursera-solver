@@ -29,7 +29,7 @@ describe("callProvider", () => {
     expect(retryBody.text.format.type).toBe("json_object");
   });
 
-  // F8: legacy background.js:167-175 had no timeout, so a hung provider stalled forever.
+  // F8: background.js:167-175 in v1.1.0 (c2f8b71) had no timeout; a hung provider stalled forever.
   it("fails with a clear message when the provider does not answer in time", async () => {
     vi.useFakeTimers();
     try {

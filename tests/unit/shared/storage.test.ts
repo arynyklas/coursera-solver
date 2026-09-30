@@ -11,7 +11,7 @@ import {
 describe("provider storage", () => {
   beforeEach(() => fakeBrowser.reset());
 
-  // F7: legacy background.js:41-77 migrated userApiKey only inside an AI request, never standalone.
+  // F7: background.js:41-77 in v1.1.0 (c2f8b71) migrated userApiKey only inside an AI request.
   it("moves a legacy Gemini key into the provider settings and removes it", async () => {
     await browser.storage.local.set({ userApiKey: "legacy-key" });
     await migrateLegacyGeminiKey();

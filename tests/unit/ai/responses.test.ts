@@ -7,7 +7,7 @@ function question(questionNumber: number, type: Question["type"], options: strin
 }
 
 describe("extractResponseText", () => {
-  // Ported from legacy/tests/ai-providers.test.js:54-70.
+  // Ported from tests/ai-providers.test.js:54-70 in v1.1.0 (c2f8b71).
   it("uses provider-specific response extractors", () => {
     expect(
       extractResponseText("gemini", {
@@ -36,7 +36,7 @@ describe("extractResponseText", () => {
 });
 
 describe("parseAndValidateAnswers", () => {
-  // Ported from legacy/tests/ai-providers.test.js:72-84.
+  // Ported from tests/ai-providers.test.js:72-84 in v1.1.0 (c2f8b71).
   it("normalizes and validates structured quiz answers", () => {
     const questions = [question(1, "single_answer", ["A", "B"]), question(2, "text_input", [])];
     const raw =
@@ -48,7 +48,7 @@ describe("parseAndValidateAnswers", () => {
     ]);
   });
 
-  // Ported from legacy/tests/ai-providers.test.js:86-92.
+  // Ported from tests/ai-providers.test.js:86-92 in v1.1.0 (c2f8b71).
   it("accepts the legacy top-level answer array", () => {
     const questions = [question(1, "single_answer", ["A"])];
     const raw = JSON.stringify([{ questionNumber: 1, correctOptions: ["A"] }]);
@@ -57,14 +57,14 @@ describe("parseAndValidateAnswers", () => {
     ]);
   });
 
-  // Ported from legacy/tests/ai-providers.test.js:94-98.
+  // Ported from tests/ai-providers.test.js:94-98 in v1.1.0 (c2f8b71).
   it("rejects option text that does not exist on the page", () => {
     const questions = [question(1, "multiple_answer", ["A", "B"])];
     const raw = JSON.stringify({ answers: [{ questionNumber: 1, correctOptions: ["C"] }] });
     expect(() => parseAndValidateAnswers(raw, questions)).toThrow(/does not match the page/);
   });
 
-  // Ported from legacy/tests/ai-providers.test.js:100-116.
+  // Ported from tests/ai-providers.test.js:100-116 in v1.1.0 (c2f8b71).
   it("rejects partial, duplicate, and malformed answers", () => {
     const questions = [question(1, "text_input", []), question(2, "text_input", [])];
 

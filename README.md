@@ -19,10 +19,6 @@
 
 A sleek, lightweight Chrome Extension to automate and help you navigate your Coursera courses with ease. 
 
-## 🧪 Fork development status
-
-The planned read-only/security refactor on `feat/dry-run-foundations` is complete and has undergone a dedicated pre-merge audit. The branch now includes modular read-only diagnostics, minimized interception, SPA-safe course state, read-only Monaco inspection, sanitized fixtures, repository-hygiene gates, and real Chrome headless regression tests. See `docs/ARCHITECTURE.md`, `docs/CHANGELOG_REFACTOR.md`, and PR #1 for the audited boundary and validation status.
-
 ## ✨ Features
 
 * **⚡ Media Auto-Completer:** Instantly mark all videos, readings, and supplements as complete in the background. No API key or setup required!

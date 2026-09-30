@@ -1,4 +1,6 @@
+import { browser } from "wxt/browser";
 import type { ProviderId } from "@/shared/types";
+import { serverOriginPattern } from "./endpoint";
 import { providerErrorMessage, shouldRetryWithoutSchema } from "./errors";
 import { getProvider } from "./providers";
 import { buildGenerationRequest, type RequestSpec } from "./requests";
@@ -38,10 +40,19 @@ export async function requestJSON(
       response = await doFetch(spec.url, { ...spec.options, signal: controller.signal });
     } catch {
       if (timedOut) throw timeoutError();
+      if (!provider.selfHosted) {
+        throw new Error(`Could not reach ${label}. Check your connection and try again.`);
+      }
+      // Without host access Chrome applies CORS, so a server that does not allow the
+      // extension's origin fails here just like a server that is down.
+      const host = new URL(spec.url).host;
+      const hasAccess = await browser.permissions.contains({
+        origins: [serverOriginPattern(spec.url)],
+      });
       throw new Error(
-        provider.selfHosted
-          ? `Could not reach the ${label} server at ${new URL(spec.url).host}. Check the server URL and that the server is running.`
-          : `Could not reach ${label}. Check your connection and try again.`,
+        hasAccess
+          ? `Could not reach the ${label} server at ${host}. Check the server URL and that the server is running.`
+          : `Allow access to ${host}: open the AI provider settings and click Load models.`,
       );
     }
 

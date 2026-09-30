@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { browser } from "wxt/browser";
 import { callProvider } from "@/ai/client";
 import { ANSWER_SCHEMA } from "@/ai/schemas";
 
@@ -59,16 +60,38 @@ describe("callProvider", () => {
     );
   });
 
-  it("names the self-hosted server it could not reach", async () => {
-    const fetchStub = vi.fn<typeof fetch>().mockRejectedValue(new TypeError("Failed to fetch"));
-    await expect(
-      callProvider(
-        { ...call, provider: "vllm", apiKey: "", baseUrl: "http://gpu.lan:8000/v1" },
-        { fetch: fetchStub },
-      ),
-    ).rejects.toThrow(
-      "Could not reach the vLLM server at gpu.lan:8000. Check the server URL and that the server is running.",
-    );
-    expect(String(fetchStub.mock.calls[0]?.[0])).toBe("http://gpu.lan:8000/v1/chat/completions");
+  describe("when a self-hosted server cannot be reached", () => {
+    const vllmCall = {
+      ...call,
+      provider: "vllm" as const,
+      apiKey: "",
+      baseUrl: "http://gpu.lan:8000/v1",
+    };
+    let contains: Mock<(permissions: { origins?: string[] }) => Promise<boolean>>;
+
+    beforeEach(() => {
+      // vi.spyOn types the last overload (callback form, returns void); the client uses the promise form.
+      contains = vi.spyOn(browser.permissions, "contains") as unknown as Mock<
+        (permissions: { origins?: string[] }) => Promise<boolean>
+      >;
+    });
+
+    it("names the server when the extension has access to it", async () => {
+      contains.mockResolvedValue(true);
+      const fetchStub = vi.fn<typeof fetch>().mockRejectedValue(new TypeError("Failed to fetch"));
+      await expect(callProvider(vllmCall, { fetch: fetchStub })).rejects.toThrow(
+        "Could not reach the vLLM server at gpu.lan:8000. Check the server URL and that the server is running.",
+      );
+      expect(String(fetchStub.mock.calls[0]?.[0])).toBe("http://gpu.lan:8000/v1/chat/completions");
+    });
+
+    it("asks for access to the server when the extension lacks it", async () => {
+      contains.mockResolvedValue(false);
+      const fetchStub = vi.fn<typeof fetch>().mockRejectedValue(new TypeError("Failed to fetch"));
+      await expect(callProvider(vllmCall, { fetch: fetchStub })).rejects.toThrow(
+        "Allow access to gpu.lan:8000: open the AI provider settings and click Load models.",
+      );
+      expect(contains).toHaveBeenCalledWith({ origins: ["http://gpu.lan:8000/*"] });
+    });
   });
 });

@@ -14,15 +14,18 @@ const ACTION_ROWS = [
   "Complete materials",
 ];
 
-/** Review evidence for the design reference; never asserted pixel-wise. */
+/**
+ * Review evidence for the design reference; never asserted pixel-wise. The files stay in the test
+ * output directory so CI uploads them even when every test passes.
+ */
 async function attachScreenshots(page: Page, testInfo: TestInfo, name: string): Promise<void> {
   for (const colorScheme of ["light", "dark"] as const) {
+    const screenshot = `${name}-${colorScheme}`;
+    const path = testInfo.outputPath(`${screenshot}.png`);
     await page.emulateMedia({ colorScheme });
     // Finishes the color transitions started by the scheme switch.
-    await testInfo.attach(`${name}-${colorScheme}`, {
-      body: await page.screenshot({ fullPage: true, animations: "disabled" }),
-      contentType: "image/png",
-    });
+    await page.screenshot({ path, fullPage: true, animations: "disabled" });
+    await testInfo.attach(screenshot, { path, contentType: "image/png" });
   }
 }
 
@@ -38,7 +41,15 @@ test("opens on settings without a key and on the off-course home with one", asyn
   await expect(provider).toBeVisible();
   await attachScreenshots(page, testInfo, "settings");
   await provider.click();
-  await expect(page.getByRole("option")).toHaveCount(7);
+  await expect(page.getByRole("option")).toHaveText([
+    "Gemini",
+    "OpenAI",
+    "Claude",
+    "xAI",
+    "DeepSeek",
+    "Groq",
+    "OpenRouter",
+  ]);
   await page.keyboard.press("Escape");
 
   await serviceWorker.evaluate(() =>

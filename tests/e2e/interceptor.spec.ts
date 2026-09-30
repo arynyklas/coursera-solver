@@ -8,11 +8,13 @@ import {
   waitForContentScript,
 } from "./extension";
 
-// The parser-blocking /fixture-hold.js is only fulfilled once both requests have settled. It holds
-// DOMContentLoaded, so the ISOLATED script (document_idle) loads after the captures were posted and
-// can only learn them from the MAIN-world snapshot answering its hello: this forces the F6(c) path.
-// Without the hold, document_idle fires before the routed fetches finish and the live capture
+// The parser-blocking /fixture-hold.js is only fulfilled once both captures reached the bridge. It
+// holds DOMContentLoaded, so the ISOLATED script (document_idle) loads after the captures were posted
+// and can only learn them from the MAIN-world snapshot answering its hello: this forces the F6(c)
+// path. Without the hold, document_idle fires before the routed fetches finish and the live capture
 // message would make this test pass without exercising the snapshot.
+// The FormData POST sends a captured header so its capture is posted: a capture carrying the
+// FormData body would make postMessage throw DataCloneError and never arrive.
 const PAGE = `<script>
   window.__results = {};
   fetch("/api/onDemandCourseMaterials.v2/?q=slug&slug=sample-course&includes=items", {
@@ -20,17 +22,29 @@ const PAGE = `<script>
   }).then((r) => r.json()).then(() => { window.__results.materials = "ok"; });
   const form = new FormData();
   form.append("field", "value");
-  fetch("/api/fixtureEcho.v1", { method: "POST", body: form }).then(
+  fetch("/api/fixtureEcho.v1", {
+    method: "POST",
+    headers: { "x-csrf3-token": "fixture-token" },
+    body: form,
+  }).then(
     () => { window.__results.formData = "resolved"; },
     (error) => { window.__results.formData = "rejected: " + error; },
   );
 </script>
 <script src="/fixture-hold.js"></script>`;
 
+const HOLD_TIMEOUT_MS = 10_000;
+
 type FixtureWindow = Window & {
   __results?: { materials?: string; formData?: string };
   __bridgeLog?: BridgeMessage[];
 };
+
+/** Whether `key` appears as a property name anywhere inside `value`. */
+function hasKeyDeep(value: unknown, key: string): boolean {
+  if (!value || typeof value !== "object") return false;
+  return Object.entries(value).some(([name, child]) => name === key || hasKeyDeep(child, key));
+}
 
 test("captures course materials without breaking FormData posts", async ({
   context,
@@ -55,19 +69,39 @@ test("captures course materials without breaking FormData posts", async ({
   await context.route("**/api/fixtureEcho.v1", (route) =>
     route.fulfill({ status: 200, contentType: "application/json", body: "{}" }),
   );
+  let holdError: Error | null = null;
   await context.route("**/fixture-hold.js", async (route) => {
-    await page.waitForFunction(
-      () => {
-        const results = (window as FixtureWindow).__results;
-        return results?.materials === "ok" && results.formData !== undefined;
-      },
-      undefined,
-      { polling: 50 },
-    );
+    try {
+      await page.waitForFunction(
+        (source) => {
+          const win = window as FixtureWindow;
+          const posted = (win.__bridgeLog ?? []).flatMap((message) =>
+            message.source === source ? [message.capture] : [],
+          );
+          return (
+            posted.some((capture) => capture.materials) &&
+            posted.some((capture) => capture.url.includes("/api/fixtureEcho.v1")) &&
+            win.__results?.formData !== undefined
+          );
+        },
+        BRIDGE.capture,
+        { polling: 50, timeout: HOLD_TIMEOUT_MS },
+      );
+    } catch (error) {
+      const sources = await page
+        .evaluate(() => (window as FixtureWindow).__bridgeLog?.map((message) => message.source))
+        .catch(() => "unavailable");
+      holdError = new Error(
+        `Within ${HOLD_TIMEOUT_MS} ms the bridge never carried both a materials capture and a ` +
+          `/api/fixtureEcho.v1 capture (or the FormData fetch never settled). Bridge log: ` +
+          `${JSON.stringify(sources)}. Cause: ${error instanceof Error ? error.message : error}`,
+      );
+    }
     await route.fulfill({ contentType: "text/javascript", body: "" });
   });
 
   await page.goto(url);
+  if (holdError) throw holdError;
   const results = await page.evaluate(() => (window as FixtureWindow).__results);
   // Regression for the upstream DataCloneError: the interceptor must never read request bodies.
   expect(results?.formData).toBe("resolved");
@@ -79,8 +113,15 @@ test("captures course materials without breaking FormData posts", async ({
   expect(diagnostics.data.state.hasCourseMaterials).toBe(true);
   expect(diagnostics.data.state.observedHeaderNames).toContain("x-csrf3-token");
 
-  // Every capture was posted before the ISOLATED hello, and the snapshot answering it carried them.
   const bridgeLog = await page.evaluate(() => (window as FixtureWindow).__bridgeLog ?? []);
+  // The FormData POST was captured, and its capture carries no request body.
+  const echo = bridgeLog
+    .flatMap((message) => (message.source === BRIDGE.capture ? [message.capture] : []))
+    .find((capture) => capture.url.includes("/api/fixtureEcho.v1"));
+  expect(echo).toMatchObject({ method: "POST", headerNames: ["x-csrf3-token"] });
+  expect(hasKeyDeep(echo, "body")).toBe(false);
+
+  // Every capture was posted before the ISOLATED hello, and the snapshot answering it carried them.
   const sources = bridgeLog.map((message) => message.source);
   expect(sources.filter((source) => source === BRIDGE.hello)).toHaveLength(1);
   expect(sources).toContain(BRIDGE.capture);

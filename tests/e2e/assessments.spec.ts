@@ -110,10 +110,12 @@ for (const { name, types, selectors, codeQuestions } of FIXTURES) {
       fixtureBody(name),
     );
     await page.goto(url);
+    // Baseline before any extension message: even the readiness poll's getDiagnostics runs the
+    // parser's block selection (legacy/tests/browser/read-only-smoke.html:45-46).
+    const before = await domSnapshot(page);
     const tabId = await tabIdOf(serviceWorker, url);
     await waitForContentScript(serviceWorker, tabId);
 
-    const before = await domSnapshot(page);
     const questions = await sendToTab(serviceWorker, tabId, { type: "getQuestions" });
     const diagnostics = await sendToTab(serviceWorker, tabId, { type: "getDiagnostics" });
     const after = await domSnapshot(page);

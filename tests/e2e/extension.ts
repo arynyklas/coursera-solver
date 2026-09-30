@@ -1,4 +1,5 @@
 import path from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import {
   type BrowserContext,
   test as base,
@@ -84,15 +85,21 @@ export function sendToTab<K extends keyof ContentRequests>(
   ] as const);
 }
 
-/** Polls `getDiagnostics` until the ISOLATED content script answers. */
+/** Polls `getDiagnostics` every 100 ms (10 s max) until the ISOLATED content script answers. */
 export async function waitForContentScript(serviceWorker: Worker, tabId: number): Promise<void> {
-  await expect
-    .poll(
-      async () =>
-        (await sendToTab(serviceWorker, tabId, { type: "getDiagnostics" }).catch(() => null))?.ok,
-      { intervals: [100], timeout: 10_000 },
-    )
-    .toBe(true);
+  const deadline = Date.now() + 10_000;
+  let lastFailure = "no reply";
+  while (Date.now() < deadline) {
+    try {
+      const reply = await sendToTab(serviceWorker, tabId, { type: "getDiagnostics" });
+      if (reply.ok) return;
+      lastFailure = `{ ok: false, error: ${JSON.stringify(reply.error)} }`;
+    } catch (error) {
+      lastFailure = error instanceof Error ? error.message : String(error);
+    }
+    await delay(100);
+  }
+  throw new Error(`The content script never answered getDiagnostics; last failure: ${lastFailure}`);
 }
 
 export interface DomSnapshot {

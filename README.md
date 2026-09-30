@@ -35,7 +35,7 @@ The extension never submits anything for you. Quiz answers are filled in for you
 ## 🚀 How to Use
 
 ### 1. Install from Source
-You need [Bun](https://bun.sh) 1.4 and Node.js 24.
+You need [Bun](https://bun.sh) 1.4 and Node.js 24 to build it, and Chrome 119 or newer to run it.
 
 1. Clone or download this repository to your local machine.
 2. Install the dependencies with `bun install`.

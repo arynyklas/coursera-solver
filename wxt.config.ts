@@ -9,6 +9,8 @@ export default defineConfig({
     name: "Coursera Auto Solver",
     description:
       "An AI-powered extension to instantly auto-complete Coursera videos, readings, and automatically solve quizzes.",
+    // Promise.withResolvers, used by the content scripts, needs Chrome 119.
+    minimum_chrome_version: "119",
     permissions: ["storage"],
     host_permissions: [
       "*://*.coursera.org/*",

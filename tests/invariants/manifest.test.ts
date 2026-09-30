@@ -11,6 +11,7 @@ interface Manifest {
   manifest_version: number;
   name: string;
   version: string;
+  minimum_chrome_version?: string;
   action?: { default_title?: string };
   permissions?: string[];
   optional_permissions?: string[];
@@ -38,6 +39,8 @@ describe("built manifest", () => {
     expect(manifest.name).toBe("Coursera Auto Solver");
     expect(manifest.version).toBe("2.0.0");
     expect(manifest.action?.default_title).toBe("Coursera Auto Solver");
+    // Promise.withResolvers, used by the content scripts, needs Chrome 119.
+    expect(manifest.minimum_chrome_version).toBe("119");
   });
 
   it("requests only the storage permission", () => {

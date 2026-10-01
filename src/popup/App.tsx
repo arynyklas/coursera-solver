@@ -55,12 +55,14 @@ function renderView(
       return <Solve context={context} config={config} onNavigate={navigate} />;
     case "dialogue":
       return <Dialogue context={context} config={config} onNavigate={navigate} />;
+    // The read-only page views start over when the tab shows another page, so their result
+    // always belongs to the page that is open.
     case "dryRun":
-      return <DryRun context={context} onNavigate={navigate} />;
+      return <DryRun key={context.url} context={context} onNavigate={navigate} />;
     case "copyQuestions":
-      return <CopyQuestions context={context} onNavigate={navigate} />;
+      return <CopyQuestions key={context.url} context={context} onNavigate={navigate} />;
     case "requirements":
-      return <Requirements context={context} onNavigate={navigate} />;
+      return <Requirements key={context.url} context={context} onNavigate={navigate} />;
     case "complete":
       return <Complete context={context} config={config} onNavigate={navigate} />;
   }

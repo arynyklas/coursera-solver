@@ -28,15 +28,28 @@ export function requireTabId(context: PageContext): number {
   return context.tabId;
 }
 
-/** The active tab, read once when the popup opens; `null` until the query settles. */
+/**
+ * The active tab, read when the popup opens and followed while the popup stays open, as it does
+ * after a requirement link navigates the tab. A navigation counts once the tab has finished
+ * loading, so the new page's content script is there to answer. `null` until the query settles.
+ */
 export function usePageContext(): PageContext | null {
   const [context, setContext] = useState<PageContext | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    let tabId: number | null = null;
+    const onUpdated: Parameters<typeof browser.tabs.onUpdated.addListener>[0] = (id, _, tab) => {
+      if (id !== tabId || tab.status !== "complete") return;
+      const url = tab.url ?? "";
+      setContext((current) => (current?.url === url ? current : pageContext(id, url)));
+    };
+    browser.tabs.onUpdated.addListener(onUpdated);
     browser.tabs.query({ active: true, currentWindow: true }).then(
       ([tab]) => {
-        if (!cancelled) setContext(pageContext(tab?.id ?? null, tab?.url ?? ""));
+        if (cancelled) return;
+        tabId = tab?.id ?? null;
+        setContext(pageContext(tabId, tab?.url ?? ""));
       },
       () => {
         if (!cancelled) setContext(pageContext(null, ""));
@@ -44,6 +57,7 @@ export function usePageContext(): PageContext | null {
     );
     return () => {
       cancelled = true;
+      browser.tabs.onUpdated.removeListener(onUpdated);
     };
   }, []);
 

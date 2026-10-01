@@ -1,3 +1,4 @@
+import type { ItemOutcome, ItemProgress, LearnerProgress } from "@/coursera/api";
 import type {
   CourseMaterials,
   CourseRequirementsResult,
@@ -96,20 +97,42 @@ export function itemIdFromPassable(passableId: string | null | undefined): strin
   return parts.at(-1) || "";
 }
 
-/** A requirement's status from Coursera's `progressState` for its item. */
-function requirementStatus(progressState: string | undefined): RequirementStatus {
-  if (progressState === "Completed") return "completed";
-  return progressState === "Started" ? "started" : "notStarted";
-}
+// Coursera reads submission for these types from the item's progress record: StaffGradedState for
+// its `isProject()` types, PeerState for peer review. Coursera's StaffGradedState also counts a
+// started project as submitted when the record has no `submitted` field; the progress this
+// extension reads may lack that field (Coursera showed a started, unsubmitted staffGraded quiz as
+// "Not submitted"), so here only an explicit `submitted: true` counts.
+const SUBMISSION_TYPES: Record<string, true> = {
+  staffGraded: true,
+  ungradedAssignment: true,
+  peer: true,
+  phasedPeer: true,
+};
 
 /**
- * `progress` holds the learner's `progressState` per item id (see `itemProgressStates`); without
- * it every status is `null`.
+ * A requirement's status as Coursera's computed item (withComputedItem) gives it, in the order its
+ * course outline checks: a passing outcome is passed; a grade or a staff adjustment without a pass
+ * is failed; then completed progress; then submitted work that has no grade yet.
  */
+function requirementStatus(
+  type: string,
+  progress: ItemProgress | undefined,
+  outcome: ItemOutcome | undefined,
+): RequirementStatus {
+  if (outcome?.isPassed) return "passed";
+  if (outcome && (outcome.overridden || outcome.grade !== undefined)) return "failed";
+  if (progress?.state === "Completed") return "completed";
+  // Other graded items count as submitted only once they have a grade, covered above.
+  return Object.hasOwn(SUBMISSION_TYPES, type) && progress?.submitted === true
+    ? "submitted"
+    : "notSubmitted";
+}
+
+/** `learner` holds the learner's progress and grade outcomes; without it every status is `null`. */
 export function normalizeCourseRequirements(
   materials: CourseMaterials,
   courseSlug: string,
-  progress: ReadonlyMap<string, string> | null = null,
+  learner: LearnerProgress | null = null,
 ): CourseRequirementsResult {
   const items = linkedCourseCollection<CourseItem>(materials, "onDemandCourseMaterialItems.v2");
   const modules = linkedCourseCollection<CourseModule>(
@@ -237,7 +260,10 @@ export function normalizeCourseRequirements(
         : null,
       source: passable || group ? "confirmed" : "detected",
       link,
-      status: progress ? requirementStatus(progress.get(id)) : null,
+      status: learner
+        ? requirementStatus(type, learner.items.get(id), learner.outcomes.get(id))
+        : null,
+      grade: learner?.outcomes.get(id)?.grade ?? null,
       moduleOrder: moduleOrder.get(item.moduleId) ?? Number.MAX_SAFE_INTEGER,
       lessonOrder: lessonOrder.get(item.lessonId) ?? Number.MAX_SAFE_INTEGER,
       itemOrder: itemOrder.get(id) ?? Number.MAX_SAFE_INTEGER,
@@ -285,8 +311,8 @@ export function normalizeCourseRequirements(
       lockedCount: requirements.filter((requirement) => requirement.locked).length,
       unmappedCount: requirements.filter((requirement) => !requirement.link).length,
       unresolvedCount,
-      completedCount: progress
-        ? requirements.filter((requirement) => requirement.status === "completed").length
+      completedCount: learner
+        ? requirements.filter(({ status }) => status === "passed" || status === "completed").length
         : null,
     },
   };

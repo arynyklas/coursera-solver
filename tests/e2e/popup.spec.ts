@@ -145,7 +145,7 @@ test("an open Course requirements view follows its tab to another course", async
   expect(materialSlugs).toEqual(["course-a", "course-b", "course-c"]);
 });
 
-test("Course requirements marks the activities the learner completed", async ({
+test("Course requirements shows the learner's status and grade per activity", async ({
   context,
   page,
   serviceWorker,
@@ -171,11 +171,33 @@ test("Course requirements marks the activities the learner completed", async ({
   await context.route("**/api/onDemandCourseMaterials.v2/**", (route) =>
     route.fulfill({ json: materials }),
   );
-  const progressRequests: string[] = [];
+  const learnerRequests: string[] = [];
   await context.route("**/api/onDemandCoursesProgress.v1/**", (route) => {
-    progressRequests.push(route.request().url());
+    learnerRequests.push(new URL(route.request().url()).pathname);
     return route.fulfill({
-      json: { elements: [{ items: { "quiz-1": { progressState: "Completed" } } }] },
+      json: {
+        elements: [
+          {
+            items: {
+              "quiz-1": { progressState: "Completed" },
+              "exam-1": { progressState: "Started" },
+            },
+          },
+        ],
+      },
+    });
+  });
+  await context.route("**/api/onDemandCourseViewGrades.v1/**", (route) => {
+    learnerRequests.push(new URL(route.request().url()).pathname);
+    return route.fulfill({
+      json: {
+        elements: [{ id: "42~internal-a" }],
+        linked: {
+          "onDemandCourseViewItemGrades.v1": [
+            { itemId: "quiz-1", overallOutcome: { grade: 0.8, isPassed: true } },
+          ],
+        },
+      },
     });
   });
 
@@ -198,13 +220,14 @@ test("Course requirements marks the activities the learner completed", async ({
 
   await expect(page.getByText("1 of 2 completed")).toBeVisible();
   await expect(
-    page.getByRole("button", { name: /^Completed\s*Practice checkpoint/ }),
+    page.getByRole("button", { name: /^Passed\s*Practice checkpoint.*Grade 80%/ }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: /^Not started\s*Module assessment/ }),
+    page.getByRole("button", { name: /^Not submitted\s*Module assessment/ }),
   ).toBeVisible();
-  expect(progressRequests).toEqual([
-    "https://www.coursera.org/api/onDemandCoursesProgress.v1/42~internal-a?fields=items",
+  expect(learnerRequests.sort()).toEqual([
+    "/api/onDemandCourseViewGrades.v1/42~internal-a",
+    "/api/onDemandCoursesProgress.v1/42~internal-a",
   ]);
   await attachScreenshots(page, testInfo, "requirements");
 });

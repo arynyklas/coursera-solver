@@ -6,7 +6,7 @@ import {
   buildWidgetProgressUrl,
   buildWidgetSessionUrl,
   courseMaterialsError,
-  itemProgressStates,
+  itemProgress,
   SUPPLEMENT_COMPLETION_URL,
   supplementCompletionBody,
   widgetSessionId,
@@ -84,8 +84,8 @@ export function createCompletionRunner(deps: CompletionDeps): CompletionRunner {
       })
       .then((response) => (response.ok ? response.json() : null))
       .catch(() => null);
-    const progressStates = itemProgressStates(progress);
-    const items = requested.filter((item) => progressStates?.get(item.id) !== "Completed");
+    const progressRecords = itemProgress(progress);
+    const items = requested.filter((item) => progressRecords?.get(item.id)?.state !== "Completed");
     const summary: CompletionSummary = {
       total: items.length,
       completed: 0,

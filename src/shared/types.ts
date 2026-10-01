@@ -88,10 +88,11 @@ export interface GroupRequirement {
 }
 
 /**
- * The learner's progress on a requirement, as Coursera records it per item: `completed` once
- * Coursera marks the item completed, `started` once it was opened or attempted.
+ * The learner's standing on a requirement, worked out as Coursera's course outline and Grades
+ * page do: `failed` and `passed` from the item's grade outcome, `completed` from progress,
+ * `submitted` once work is in but not graded, otherwise `notSubmitted`.
  */
-export type RequirementStatus = "completed" | "started" | "notStarted";
+export type RequirementStatus = "passed" | "failed" | "completed" | "submitted" | "notSubmitted";
 
 export interface Requirement {
   id: string;
@@ -110,6 +111,8 @@ export interface Requirement {
   link: string | null;
   /** `null` when the learner's progress could not be read. */
   status: RequirementStatus | null;
+  /** The item's overall grade as a fraction (0.8 is 80%), or `null` without one. */
+  grade: number | null;
 }
 
 export interface RequirementsSummary {

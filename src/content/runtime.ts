@@ -1,5 +1,5 @@
 import type { CompletionRunner } from "@/content/completion";
-import { loadCourseMaterials, loadItemProgress } from "@/content/course-materials";
+import { loadCourseMaterials, loadLearnerProgress } from "@/content/course-materials";
 import { fillDialogueAnswer } from "@/content/dialogue-fill";
 import { extractAssessment } from "@/content/extract";
 import type { MonacoClient } from "@/content/monaco-client";
@@ -15,7 +15,7 @@ export interface ContentRuntimeDeps {
   doc: Document;
   location(): string;
   state: CourseState;
-  /** The learner whose progress Course requirements shows. */
+  /** The learner whose progress and grades Course requirements shows. */
   session: { get(): SessionCredentials };
   monaco: MonacoClient;
   solve: SolveRunner;
@@ -36,12 +36,12 @@ export function createContentHandlers(deps: ContentRuntimeDeps): Handlers<Conten
     },
     async getCourseRequirements() {
       const materials = await loadCourseMaterials({ state, fetch: deps.fetch, location });
-      const progress = await loadItemProgress(
+      const learner = await loadLearnerProgress(
         deps.fetch,
         deps.session.get().userId,
         materials.elements?.[0]?.id,
       );
-      return normalizeCourseRequirements(materials, state.snapshot().courseSlug, progress);
+      return normalizeCourseRequirements(materials, state.snapshot().courseSlug, learner);
     },
     getDiagnostics() {
       state.syncLocation(location());

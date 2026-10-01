@@ -9,6 +9,50 @@ const sender = {} as MessageSender;
 
 const PROGRESS_URL =
   "https://www.coursera.org/api/onDemandCoursesProgress.v1/42~internal-course?fields=items";
+const GRADES_URL =
+  "https://www.coursera.org/api/onDemandCourseViewGrades.v1/42~internal-course?includes=items,itemOutcomeOverrides&fields=onDemandCourseViewItemGrades.v1(overallOutcome),onDemandCourseGradeItemOutcomeOverrides.v1(grade,isPassed)";
+
+/** The learner's progress and grades as Coursera returns them for the fixture course. */
+function learnerRoute(overrides: { progress?: () => Response; grades?: () => Response } = {}) {
+  return (url: string) => {
+    if (url === PROGRESS_URL) {
+      return overrides.progress
+        ? overrides.progress()
+        : Response.json({
+            elements: [
+              {
+                items: {
+                  "quiz-1": { progressState: "Completed" },
+                  "exam-1": {
+                    progressState: "Started",
+                    content: { definition: { submitted: false } },
+                  },
+                },
+              },
+            ],
+          });
+    }
+    if (url === GRADES_URL) {
+      return overrides.grades
+        ? overrides.grades()
+        : Response.json({
+            elements: [{ id: "42~internal-course" }],
+            linked: {
+              "onDemandCourseViewItemGrades.v1": [
+                { itemId: "quiz-1", overallOutcome: { grade: 0.8, isPassed: true } },
+                // Without `itemId`, the item id is the last part of the record id.
+                {
+                  id: "42~internal-course~exam-1",
+                  overallOutcome: { grade: 0.5, isPassed: false },
+                },
+              ],
+              "onDemandCourseGradeItemOutcomeOverrides.v1": [],
+            },
+          });
+    }
+    return Response.json(courseMaterials());
+  };
+}
 
 /** The sanitized materials fixture, with the internal course id Coursera returns for the course. */
 function courseMaterials() {
@@ -68,29 +112,22 @@ describe("content handlers", () => {
 });
 
 describe("course requirements handler", () => {
-  it("marks each requirement with the learner's progress in the route course", async () => {
-    const { handlers, fetch } = setup(COURSE_URL, {
-      userId: "42",
-      route: (url) =>
-        url === PROGRESS_URL
-          ? Response.json({ elements: [{ items: { "quiz-1": { progressState: "Completed" } } }] })
-          : Response.json(courseMaterials()),
-    });
+  it("marks each requirement with the learner's progress and grade in the route course", async () => {
+    const { handlers, fetch } = setup(COURSE_URL, { userId: "42", route: learnerRoute() });
 
     const result = await handlers.getCourseRequirements({}, sender);
 
-    expect(fetch).toHaveBeenLastCalledWith(PROGRESS_URL, { credentials: "include" });
-    expect(result.requirements.map(({ id, status }) => [id, status])).toEqual([
-      ["quiz-1", "completed"],
-      ["exam-1", "notStarted"],
+    expect(fetch).toHaveBeenCalledWith(PROGRESS_URL, { credentials: "include" });
+    expect(fetch).toHaveBeenCalledWith(GRADES_URL, { credentials: "include" });
+    expect(result.requirements.map(({ id, status, grade }) => [id, status, grade])).toEqual([
+      ["quiz-1", "passed", 0.8],
+      ["exam-1", "failed", 0.5],
     ]);
     expect(result.summary.completedCount).toBe(1);
   });
 
   it("returns the requirements without a status when the learner is not known", async () => {
-    const { handlers, fetch } = setup(COURSE_URL, {
-      route: () => Response.json(courseMaterials()),
-    });
+    const { handlers, fetch } = setup(COURSE_URL, { route: learnerRoute() });
 
     const result = await handlers.getCourseRequirements({}, sender);
 
@@ -100,23 +137,27 @@ describe("course requirements handler", () => {
   });
 
   it.each([
-    ["refuses the progress request", () => Response.json({}, { status: 403 })],
-    ["returns no progress record", () => Response.json({ elements: [] })],
+    ["refuses the progress request", { progress: () => Response.json({}, { status: 403 }) }],
+    ["returns no progress record", { progress: () => Response.json({ elements: [] }) }],
+    ["refuses the grades request", { grades: () => Response.json({}, { status: 403 }) }],
+    ["returns no grades record", { grades: () => Response.json({ elements: [] }) }],
     [
       "cannot be reached",
-      () => {
-        throw new TypeError("Failed to fetch");
+      {
+        grades: () => {
+          throw new TypeError("Failed to fetch");
+        },
       },
     ],
-  ])("returns the requirements without a status when Coursera %s", async (_case, progress) => {
-    const { handlers } = setup(COURSE_URL, {
-      userId: "42",
-      route: (url) => (url === PROGRESS_URL ? progress() : Response.json(courseMaterials())),
-    });
+  ])("returns the requirements without a status when Coursera %s", async (_case, overrides) => {
+    const { handlers } = setup(COURSE_URL, { userId: "42", route: learnerRoute(overrides) });
 
     const result = await handlers.getCourseRequirements({}, sender);
 
-    expect(result.requirements.map(({ status }) => status)).toEqual([null, null]);
+    expect(result.requirements.map(({ status, grade }) => [status, grade])).toEqual([
+      [null, null],
+      [null, null],
+    ]);
     expect(result.summary.completedCount).toBeNull();
   });
 });

@@ -25,7 +25,7 @@ The extension never submits anything for you. Quiz answers are filled in for you
 
 * **⚡ Media Auto-Completer:** Marks every video, reading, and ungraded plugin (such as lab instructions that only ask you to press **Mark as completed**) in the course as complete in the background, with live progress in a card on the Coursera page. Items you already completed and locked items are skipped, and quizzes, exams, and other graded work are never touched. No API key required!
 * **📋 Question Extractor:** Extracts the quiz and assignment questions on the page as clean JSON, ready to copy. No API key needed!
-* **🎯 Course Requirements:** Finds Coursera activities that count toward the course grade, groups them by module, marks the ones you have completed, and opens them directly from the popup.
+* **🎯 Course Requirements:** Finds Coursera activities that count toward the course grade, groups them by module, shows your status and grade on each the way Coursera's Grades page does, and opens them directly from the popup.
 * **🤖 Multi-Provider Quiz Solver:** Fills in multiple-choice, text-input, essay, and Monaco code-expression questions with Gemini, OpenAI, Claude, xAI, DeepSeek, Groq, OpenRouter, or your own [vLLM](https://docs.vllm.ai) server. It never submits: you review the answers, then submit yourself.
 * **💬 Dialogue Answer Drafting:** Reads the current Coursera Coach question and fills a suggested answer into the message box for you to review and send.
 * **🧪 Dry Run:** Shows how the extension reads the current assessment (selector strategy, question types, and parser issues) as a copyable report. It does not call an AI provider or change anything on the page.
@@ -82,7 +82,7 @@ When **Course requirements** is opened, the extension:
 * Shows relative grading-weight percentages when the returned weight data is complete enough to calculate them safely.
 * Explains grouped choices such as **Pass 1 choice** when Coursera allows the learner to satisfy a requirement using one or more alternatives.
 * Marks locked activities with a lock icon and shows Coursera's lock reason on hover when provided.
-* Marks each activity **Completed**, **In progress**, or **Not started** from the progress Coursera keeps for you, and counts the completed ones. If your progress cannot be read, the list is shown without these marks and says so.
+* Shows each activity's status the way Coursera's course outline and Grades page work it out, from the progress and grade records Coursera keeps for you: **Passed** or **Didn't pass** with the grade, **Completed**, **Submitted** (waiting for a grade), or **Not submitted**. The header counts the passed and completed ones. If your progress or grades cannot be read, the list is shown without statuses and says so.
 * Builds direct links for supported quizzes, exams, assignments, peer reviews, and programming activities, and opens them in the current tab.
 * Marks an item as **Link unavailable** instead of inventing a route when its type cannot be mapped safely.
 
@@ -100,7 +100,7 @@ When explicit passable metadata is available, the popup marks the result **Confi
 
 Course Requirements shows the course structure and your progress in it. It does not:
 
-* Read the learner's grades or attempt results. The marks follow the progress state Coursera keeps per item.
+* Show deadlines, or mark late work as overdue the way Coursera's Grades page does.
 * Calculate the course's final passing threshold.
 * Guarantee that completing every displayed item will pass the course.
 * Include ordinary videos, readings, optional practice, or ungraded material unless Coursera explicitly references an item as part of a passable requirement.
@@ -129,7 +129,7 @@ The original browser networking methods are still called, so interception observ
 
 ### Captured request context
 
-The isolated content script keeps the current `x-csrf3-token` value and the learner identifier only in the Coursera tab's memory, because the media-completion requests depend on them. **Complete materials** reads both; **Course requirements** reads only the learner identifier, to request your progress in the open course. Other observed allowlisted request headers are represented by their names, not their values.
+The isolated content script keeps the current `x-csrf3-token` value and the learner identifier only in the Coursera tab's memory, because the media-completion requests depend on them. **Complete materials** reads both; **Course requirements** reads only the learner identifier, to request your progress and grades in the open course. Other observed allowlisted request headers are represented by their names, not their values.
 
 The retained CSRF3 value is not written to `chrome.storage`, committed to the repository, or included in Dry Run reports. Reloading or closing the Coursera tab clears it.
 

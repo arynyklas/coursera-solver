@@ -17,8 +17,12 @@ vi.mock("@/shared/messaging", async (importOriginal) => {
 const COURSE_A = "https://www.coursera.org/learn/course-a/home/welcome";
 const COURSE_B = "https://www.coursera.org/learn/course-b/home/welcome";
 
-/** A graded exam as the content script reports it, with the learner's progress on it. */
-function requirement(name: string, status: RequirementStatus | null): Requirement {
+/** A graded exam as the content script reports it, with the learner's status and grade on it. */
+function requirement(
+  name: string,
+  status: RequirementStatus | null,
+  grade: number | null = null,
+): Requirement {
   return {
     id: name,
     name,
@@ -35,6 +39,7 @@ function requirement(name: string, status: RequirementStatus | null): Requiremen
     source: "confirmed",
     link: null,
     status,
+    grade,
   };
 }
 
@@ -51,7 +56,7 @@ function result(requirements: Requirement[]): CourseRequirementsResult {
       unmappedCount: 0,
       unresolvedCount: 0,
       completedCount: progressKnown
-        ? requirements.filter(({ status }) => status === "completed").length
+        ? requirements.filter(({ status }) => status === "passed" || status === "completed").length
         : null,
     },
   };
@@ -134,20 +139,26 @@ describe("Course requirements view", () => {
     expect(sendToTab).toHaveBeenLastCalledWith(tabId, "getCourseRequirements", {});
   });
 
-  it("shows which requirements the learner has completed", async () => {
+  it("shows each requirement's status and grade the way Coursera's Grades page does", async () => {
     await openRequirements(() =>
       result([
-        requirement("Module quiz", "completed"),
-        requirement("Final exam", "started"),
-        requirement("Peer review", "notStarted"),
+        requirement("Module quiz", "passed", 0.9),
+        requirement("Final exam", "failed", 0.4),
+        requirement("Peer review", "submitted"),
+        requirement("Practice lab", "completed"),
+        requirement("Course project", "notSubmitted"),
       ]),
     );
 
-    await screen.findByText("1 of 3 completed");
+    await screen.findByText("2 of 5 completed");
     // The status leads each row's accessible name, so it is announced with the activity.
-    expect(screen.getByRole("button", { name: /^Completed\s*Module quiz/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /^In progress\s*Final exam/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /^Not started\s*Peer review/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Passed\s*Module quiz.*Grade 90%/ })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: /^Didn't pass\s*Final exam.*Grade 40%/ }),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Submitted\s*Peer review/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Completed\s*Practice lab/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Not submitted\s*Course project/ })).toBeTruthy();
   });
 
   it("says so when the learner's progress could not be read", async () => {

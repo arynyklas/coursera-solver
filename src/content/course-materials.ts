@@ -1,9 +1,12 @@
 import {
+  buildCourseGradesUrl,
   buildCourseMaterialsUrl,
   buildCourseProgressUrl,
   courseMaterialsError,
   hasSupportedCourseMaterials,
-  itemProgressStates,
+  itemOutcomes,
+  itemProgress,
+  type LearnerProgress,
 } from "@/coursera/api";
 import type { CourseState } from "@/coursera/course-state";
 import type { CourseMaterials } from "@/shared/types";
@@ -45,21 +48,29 @@ export async function loadCourseMaterials({
 }
 
 /**
- * The learner's `progressState` per item id in a course, or `null` when it cannot be read: the
- * learner or course id is unknown, or Coursera refuses or fails the request. Requirements are
+ * The learner's progress and grade outcomes in a course, the two records Coursera's own outline
+ * and Grades page read, or `null` when either cannot be read: the learner or course id is unknown,
+ * or Coursera refuses, fails or answers a request without the learner's record. Requirements are
  * still shown without it.
  */
-export async function loadItemProgress(
+export async function loadLearnerProgress(
   fetch: typeof globalThis.fetch,
   userId: string | undefined,
   courseId: string | undefined,
-): Promise<Map<string, string> | null> {
+): Promise<LearnerProgress | null> {
   if (!userId || !courseId) return null;
+  const read = async (url: string): Promise<unknown> => {
+    const response = await fetch(url, { credentials: "include" });
+    return response.ok ? response.json() : null;
+  };
   try {
-    const response = await fetch(buildCourseProgressUrl(userId, courseId), {
-      credentials: "include",
-    });
-    return response.ok ? itemProgressStates(await response.json()) : null;
+    const [progressBody, gradesBody] = await Promise.all([
+      read(buildCourseProgressUrl(userId, courseId)),
+      read(buildCourseGradesUrl(userId, courseId)),
+    ]);
+    const items = itemProgress(progressBody);
+    const outcomes = itemOutcomes(gradesBody);
+    return items && outcomes ? { items, outcomes } : null;
   } catch {
     return null;
   }

@@ -2,7 +2,8 @@ import {
   ChevronRight,
   Circle,
   CircleCheck,
-  CircleDashed,
+  CircleX,
+  Clock,
   Lock,
   type LucideIcon,
 } from "lucide-react";
@@ -17,6 +18,7 @@ import { ViewHeader } from "@/popup/components/ViewHeader";
 import { usePageAction } from "@/popup/hooks/usePageAction";
 import { type PageContext, requireTabId } from "@/popup/hooks/usePageContext";
 import {
+  formatGradePercent,
   formatRequirementTime,
   formatWeightPercent,
   plural,
@@ -28,10 +30,13 @@ import type { CourseRequirementsResult, Requirement, RequirementStatus } from "@
 
 const OPEN_FAILED = "Coursera could not open that activity. Refresh the page and try again.";
 
+// Coursera's own labels for these states, from its course outline and Grades page.
 const STATUS: Record<RequirementStatus, { icon: LucideIcon; label: string; className: string }> = {
+  passed: { icon: CircleCheck, label: "Passed", className: "text-success" },
   completed: { icon: CircleCheck, label: "Completed", className: "text-success" },
-  started: { icon: CircleDashed, label: "In progress", className: "text-muted-foreground" },
-  notStarted: { icon: Circle, label: "Not started", className: "text-muted-foreground" },
+  failed: { icon: CircleX, label: "Didn't pass", className: "text-destructive" },
+  submitted: { icon: Clock, label: "Submitted", className: "text-muted-foreground" },
+  notSubmitted: { icon: Circle, label: "Not submitted", className: "text-muted-foreground" },
 };
 
 export function Requirements({
@@ -100,8 +105,8 @@ function RequirementList({
 
   const progressNote =
     summary.completedCount === null
-      ? "Your Coursera progress could not be read, so completion is not shown. Refresh the Coursera page to try again."
-      : "Completion follows your Coursera progress. Grades are not included.";
+      ? "Your Coursera progress could not be read, so statuses and grades are not shown. Refresh the Coursera page to try again."
+      : "Statuses and grades come from your Coursera progress, as on the course's Grades page.";
 
   return (
     <>
@@ -159,10 +164,15 @@ function RequirementRow({
     .filter(Boolean)
     .join(" · ");
   const weight = formatWeightPercent(requirement.weightPercent);
+  const grade = formatGradePercent(requirement.grade);
   const passCount = requirement.groupRequirement?.requiredPassedCount ?? 0;
   const status = requirement.status ? STATUS[requirement.status] : null;
-  // A completed activity reads as completed even when it is locked now.
-  const showLock = requirement.locked && requirement.status !== "completed";
+  // As in Coursera's outline, a result (passed, completed, failed) shows over the lock.
+  const showLock =
+    requirement.locked &&
+    (requirement.status === null ||
+      requirement.status === "submitted" ||
+      requirement.status === "notSubmitted");
   const StatusIcon = showLock ? Lock : status?.icon;
 
   return (
@@ -193,6 +203,11 @@ function RequirementRow({
         ) : null}
       </span>
       <span className="flex max-w-[55%] flex-wrap justify-end gap-1">
+        {grade ? (
+          <ToneBadge tone={requirement.status === "passed" ? "success" : "warning"}>
+            Grade {grade}%
+          </ToneBadge>
+        ) : null}
         {requirement.requiredForPassing ? <ToneBadge tone="accent">Required</ToneBadge> : null}
         {passCount ? (
           <ToneBadge tone="outline">Pass {plural(passCount, "choice", "choices")}</ToneBadge>

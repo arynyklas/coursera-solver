@@ -20,6 +20,31 @@ const fixture = JSON.parse(
   readFileSync("tests/fixtures/course-materials-confirmed.json", "utf8"),
 ) as Fixture;
 
+/** One confirmed requirement per entry, item id → Coursera item type, in a single lesson. */
+function gradedMaterials(types: Record<string, string>): CourseMaterials {
+  const ids = Object.keys(types);
+  return {
+    elements: [{ moduleIds: ["module"] }],
+    linked: {
+      "onDemandCourseMaterialModules.v1": [{ id: "module", name: "M", lessonIds: ["lesson"] }],
+      "onDemandCourseMaterialLessons.v1": [{ id: "lesson", name: "L", itemIds: ids }],
+      "onDemandCourseMaterialItems.v2": ids.map((id) => ({
+        id,
+        moduleId: "module",
+        lessonId: "lesson",
+        name: id,
+        slug: id,
+        contentSummary: { typeName: types[id] },
+      })),
+      "onDemandCourseMaterialPassableLessonElements.v1": ids.map((id) => ({
+        id: `passable~${id}`,
+        gradingWeight: 1,
+        isRequiredForPassing: true,
+      })),
+    },
+  };
+}
+
 // Ported from tests/course-requirements.test.js in v1.1.0 (c2f8b71).
 describe("course requirements", () => {
   it("maps known Coursera activity types to stable routes", () => {
@@ -64,33 +89,73 @@ describe("course requirements", () => {
     expect(exam?.link).toMatch(/\/learn\/sample-course\/exam\/exam-1\/module-assessment$/);
   });
 
-  it("reports the learner's progress on each requirement", () => {
-    const result = normalizeCourseRequirements(
-      fixture,
-      "sample-course",
-      new Map([
-        ["quiz-1", "Completed"],
-        ["exam-1", "Started"],
+  // Mirrors Coursera's computed item (isFailed, isPassed, isCompleted, isSubmitted) and the labels
+  // its course outline and Grades page derive from it.
+  it("works out each status the way Coursera's outline and Grades page do", () => {
+    const materials = gradedMaterials({
+      passed: "quiz",
+      failed: "exam",
+      failedAfterCompleting: "quiz",
+      completed: "quiz",
+      projectSubmitted: "staffGraded",
+      projectNotSubmitted: "staffGraded",
+      projectStarted: "staffGraded",
+      peerSubmitted: "peer",
+      peerStarted: "phasedPeer",
+      quizStarted: "quiz",
+      untouched: "programming",
+      overriddenWithoutPass: "quiz",
+    });
+    const learner = {
+      items: new Map([
+        ["failedAfterCompleting", { state: "Completed" }],
+        ["completed", { state: "Completed" }],
+        ["projectSubmitted", { state: "Started", submitted: true }],
+        ["projectNotSubmitted", { state: "Started", submitted: false }],
+        // A started staffGraded quiz whose progress has no `submitted` field, as Coursera listed
+        // one in the user's course as "Не отправлено" (not submitted).
+        ["projectStarted", { state: "Started" }],
+        ["peerSubmitted", { state: "Started", submitted: true }],
+        ["peerStarted", { state: "Started" }],
+        ["quizStarted", { state: "Started" }],
       ]),
-    );
-    expect(result.requirements.map(({ id, status }) => [id, status])).toEqual([
-      ["quiz-1", "completed"],
-      ["exam-1", "started"],
-    ]);
-    expect(result.summary.completedCount).toBe(1);
+      outcomes: new Map([
+        ["passed", { grade: 0.9, isPassed: true, overridden: false }],
+        ["failed", { grade: 0.4, isPassed: false, overridden: false }],
+        ["failedAfterCompleting", { grade: 0.5, isPassed: false, overridden: false }],
+        ["overriddenWithoutPass", { isPassed: false, overridden: true }],
+      ]),
+    };
 
-    const untouched = normalizeCourseRequirements(fixture, "sample-course", new Map());
-    expect(untouched.requirements.map(({ status }) => status)).toEqual([
-      "notStarted",
-      "notStarted",
-    ]);
-    expect(untouched.summary.completedCount).toBe(0);
+    const result = normalizeCourseRequirements(materials, "course", learner);
+
+    expect(
+      Object.fromEntries(result.requirements.map(({ id, status, grade }) => [id, [status, grade]])),
+    ).toEqual({
+      passed: ["passed", 0.9],
+      failed: ["failed", 0.4],
+      failedAfterCompleting: ["failed", 0.5],
+      completed: ["completed", null],
+      projectSubmitted: ["submitted", null],
+      projectNotSubmitted: ["notSubmitted", null],
+      projectStarted: ["notSubmitted", null],
+      peerSubmitted: ["submitted", null],
+      peerStarted: ["notSubmitted", null],
+      // A quiz counts as submitted only once it has a grade.
+      quizStarted: ["notSubmitted", null],
+      untouched: ["notSubmitted", null],
+      overriddenWithoutPass: ["failed", null],
+    });
+    expect(result.summary.completedCount).toBe(2);
   });
 
   it("leaves the status unknown when the learner's progress was not read", () => {
     const result = normalizeCourseRequirements(fixture, "sample-course");
 
-    expect(result.requirements.map(({ status }) => status)).toEqual([null, null]);
+    expect(result.requirements.map(({ status, grade }) => [status, grade])).toEqual([
+      [null, null],
+      [null, null],
+    ]);
     expect(result.summary.completedCount).toBeNull();
   });
 

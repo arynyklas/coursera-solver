@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatGradePercent,
   formatRequirementTime,
   formatWeightPercent,
   safeCourseRequirementUrl,
@@ -19,6 +20,14 @@ describe("requirement formatting", () => {
     expect(formatWeightPercent(25)).toBe("25");
     expect(formatWeightPercent(12.5)).toBe("12.5");
     expect(formatWeightPercent(null)).toBe("");
+  });
+
+  it("prints grades like Coursera: whole percentages bare, others with two decimals", () => {
+    expect(formatGradePercent(0.8)).toBe("80");
+    expect(formatGradePercent(1)).toBe("100");
+    expect(formatGradePercent(0.83333)).toBe("83.33");
+    expect(formatGradePercent(0.655)).toBe("65.50");
+    expect(formatGradePercent(null)).toBe("");
   });
 
   it("only opens https www.coursera.org course links", () => {

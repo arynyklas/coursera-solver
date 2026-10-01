@@ -101,20 +101,106 @@ export function widgetSessionId(body: unknown): string {
   return typeof element.sessionId === "string" ? element.sessionId : "";
 }
 
+/** One item's record in the learner's course progress. */
+export interface ItemProgress {
+  /** Coursera's `progressState`: "Started" or "Completed". */
+  state: string;
+  /** `content.definition.submitted`, which staff-graded and peer-graded items record. */
+  submitted?: boolean;
+}
+
+/** One item's overall grade outcome, as Coursera's Grades page reads it. */
+export interface ItemOutcome {
+  /** A fraction (0.8 is 80%); absent until the work is graded. */
+  grade?: number;
+  isPassed: boolean;
+  /** Staff adjusted the outcome. */
+  overridden: boolean;
+}
+
+/** The learner's progress and grade outcomes in one course, by item id. */
+export interface LearnerProgress {
+  items: ReadonlyMap<string, ItemProgress>;
+  outcomes: ReadonlyMap<string, ItemOutcome>;
+}
+
 /**
- * Each item's `progressState` ("Completed", "Started") by item id, from an
- * `onDemandCoursesProgress.v1` response. A record without items means nothing was started yet;
- * a response without the learner's record gives `null`.
+ * Each item's progress record by item id, from an `onDemandCoursesProgress.v1` response. A record
+ * without items means nothing was started yet; a response without the learner's record gives
+ * `null`.
  */
-export function itemProgressStates(body: unknown): Map<string, string> | null {
+export function itemProgress(body: unknown): Map<string, ItemProgress> | null {
   const element = firstElement(body);
   if (!element) return null;
-  const states = new Map<string, string>();
+  const progress = new Map<string, ItemProgress>();
   const items = "items" in element ? element.items : undefined;
-  if (typeof items !== "object" || items === null) return states;
+  if (typeof items !== "object" || items === null) return progress;
   for (const [id, item] of Object.entries(items)) {
     if (typeof item !== "object" || item === null || !("progressState" in item)) continue;
-    if (typeof item.progressState === "string") states.set(id, item.progressState);
+    if (typeof item.progressState !== "string") continue;
+    const content = "content" in item ? item.content : undefined;
+    const definition =
+      typeof content === "object" && content !== null && "definition" in content
+        ? content.definition
+        : undefined;
+    const submitted =
+      typeof definition === "object" && definition !== null && "submitted" in definition
+        ? definition.submitted
+        : undefined;
+    progress.set(id, {
+      state: item.progressState,
+      ...(typeof submitted === "boolean" ? { submitted } : {}),
+    });
   }
-  return states;
+  return progress;
+}
+
+// The same grade records Coursera's Grades page loads: each item's overall outcome and any
+// outcome a staff member adjusted.
+export function buildCourseGradesUrl(userId: string, courseId: string): string {
+  return `https://www.coursera.org/api/onDemandCourseViewGrades.v1/${userId}~${courseId}?includes=items,itemOutcomeOverrides&fields=onDemandCourseViewItemGrades.v1(overallOutcome),onDemandCourseGradeItemOutcomeOverrides.v1(grade,isPassed)`;
+}
+
+/** The item id of a linked grade record: its `itemId`, else the last part of its `id`. */
+function gradeRecordItemId(record: object): string {
+  if ("itemId" in record && typeof record.itemId === "string") return record.itemId;
+  const id = "id" in record && typeof record.id === "string" ? record.id : "";
+  return id.split("~").at(-1) ?? "";
+}
+
+/** The linked records of one collection in a Coursera REST response. */
+function linkedRecords(body: object, key: string): object[] {
+  const linked = "linked" in body ? body.linked : undefined;
+  if (typeof linked !== "object" || linked === null) return [];
+  const records: unknown = Reflect.get(linked, key);
+  return Array.isArray(records)
+    ? records.filter((record): record is object => typeof record === "object" && record !== null)
+    : [];
+}
+
+/**
+ * Each graded item's outcome by item id, from an `onDemandCourseViewGrades.v1` response, or
+ * `null` when the response has no grade record for the learner.
+ */
+export function itemOutcomes(body: unknown): Map<string, ItemOutcome> | null {
+  if (!firstElement(body) || typeof body !== "object" || body === null) return null;
+  const outcomes = new Map<string, ItemOutcome>();
+  for (const record of linkedRecords(body, "onDemandCourseViewItemGrades.v1")) {
+    const itemId = gradeRecordItemId(record);
+    const outcome = "overallOutcome" in record ? record.overallOutcome : undefined;
+    if (!itemId || typeof outcome !== "object" || outcome === null) continue;
+    const grade =
+      "grade" in outcome && typeof outcome.grade === "number" ? outcome.grade : undefined;
+    outcomes.set(itemId, {
+      ...(grade === undefined ? {} : { grade }),
+      isPassed: "isPassed" in outcome && outcome.isPassed === true,
+      overridden: false,
+    });
+  }
+  for (const record of linkedRecords(body, "onDemandCourseGradeItemOutcomeOverrides.v1")) {
+    const itemId = gradeRecordItemId(record);
+    if (!itemId) continue;
+    outcomes.set(itemId, { ...(outcomes.get(itemId) ?? { isPassed: false }), overridden: true });
+  }
+  return outcomes;
 }

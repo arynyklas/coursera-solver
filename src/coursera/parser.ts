@@ -1,4 +1,9 @@
-import type { SelectorDiagnostics, SelectorStrategy, SupportedQuestionType } from "@/shared/types";
+import type {
+  QuestionImage,
+  SelectorDiagnostics,
+  SelectorStrategy,
+  SupportedQuestionType,
+} from "@/shared/types";
 
 export const SELECTORS = {
   semanticBlock: '[data-testid^="part-Submission_"]',
@@ -31,6 +36,8 @@ export interface ParsedBlock {
   type: SupportedQuestionType | "unknown";
   options: string[];
   handle: HandleDraft;
+  /** Images in the prompt, then in the options. */
+  images: QuestionImage[];
 }
 
 interface SelectorState {
@@ -110,11 +117,6 @@ export function selectorDiagnostics(root: ParentNode): SelectorDiagnostics {
   };
 }
 
-export function promptText(block: Element): string {
-  const promptNode = block.querySelector(SELECTORS.semanticPrompt);
-  return promptNode ? visibleText(promptNode) : "";
-}
-
 export function isCodeQuestion(block: Element): boolean {
   return block.getAttribute("data-testid") === CODE_QUESTION_TESTID;
 }
@@ -124,17 +126,33 @@ export function optionText(option: Element): string {
   return textNode ? visibleText(textNode) : "";
 }
 
-function classify(block: HTMLElement): Pick<ParsedBlock, "type" | "options" | "handle"> {
+/** The images in `node` that can be sent to an AI provider: `https:` and `data:image/` URLs. */
+function imagesIn(node: Element | null, option?: string): QuestionImage[] {
+  const images: QuestionImage[] = [];
+  for (const image of node?.querySelectorAll("img") ?? []) {
+    const url = image.currentSrc || image.src;
+    if (!url.startsWith("https:") && !url.startsWith("data:image/")) continue;
+    images.push({ url, alt: image.alt.trim(), ...(option === undefined ? {} : { option }) });
+  }
+  return images;
+}
+
+function classify(block: HTMLElement): Pick<ParsedBlock, "type" | "options" | "handle" | "images"> {
   if (isCodeQuestion(block)) {
-    return { type: "code_expression", options: [], handle: { kind: "code", block } };
+    return { type: "code_expression", options: [], handle: { kind: "code", block }, images: [] };
   }
 
   const choices: { text: string; input: HTMLInputElement }[] = [];
-  for (const option of block.querySelectorAll(SELECTORS.option)) {
+  const images: QuestionImage[] = [];
+  block.querySelectorAll(SELECTORS.option).forEach((option, index) => {
     const input = option.querySelector<HTMLInputElement>(SELECTORS.optionInput);
-    const text = optionText(option);
-    if (input && text) choices.push({ text, input });
-  }
+    // An option shown only as an image is named by its position, which every re-parse repeats.
+    const text =
+      optionText(option) || (option.querySelector("img") ? `Image option ${index + 1}` : "");
+    if (!input || !text) return;
+    choices.push({ text, input });
+    images.push(...imagesIn(option, text));
+  });
   const firstChoice = choices[0];
   if (firstChoice) {
     const type = firstChoice.input.type === "radio" ? "single_answer" : "multiple_answer";
@@ -142,22 +160,31 @@ function classify(block: HTMLElement): Pick<ParsedBlock, "type" | "options" | "h
       type,
       options: choices.map((choice) => choice.text),
       handle: { kind: "choice", block, multiple: type === "multiple_answer", options: choices },
+      images,
     };
   }
 
   const editor = block.querySelector<HTMLElement>(SELECTORS.slateEditor);
-  if (editor) return { type: "essay", options: [], handle: { kind: "essay", block, editor } };
+  if (editor) {
+    return { type: "essay", options: [], handle: { kind: "essay", block, editor }, images: [] };
+  }
 
   const field = block.querySelector<HTMLInputElement | HTMLTextAreaElement>(SELECTORS.writtenInput);
-  if (field) return { type: "text_input", options: [], handle: { kind: "text", block, field } };
+  if (field) {
+    return { type: "text_input", options: [], handle: { kind: "text", block, field }, images: [] };
+  }
 
-  return { type: "unknown", options: [], handle: { kind: "unsupported", block } };
+  return { type: "unknown", options: [], handle: { kind: "unsupported", block }, images: [] };
 }
 
 export function parseQuestionBlock(block: HTMLElement, questionNumber: number): ParsedBlock | null {
-  const prompt = promptText(block);
-  if (!prompt) return null;
-  return { questionNumber, prompt, ...classify(block) };
+  const promptNode = block.querySelector(SELECTORS.semanticPrompt);
+  const prompt = promptNode ? visibleText(promptNode) : "";
+  const promptImages = imagesIn(promptNode);
+  // A prompt shown only as an image is still a question.
+  if (!prompt && promptImages.length === 0) return null;
+  const { images: optionImages, ...classified } = classify(block);
+  return { questionNumber, prompt, ...classified, images: [...promptImages, ...optionImages] };
 }
 
 export function parseAssessment(root: ParentNode): {

@@ -91,6 +91,17 @@ describe("solve runner", () => {
     expect(shows[1]?.description).toBe("Asking Gemini about 1 question…");
   });
 
+  it("counts the images it sends along", async () => {
+    document.body.innerHTML = `<section data-testid="part-Submission_TextQuestion">${prompt(
+      'Name the diagram. <img src="https://cdn.example/a.png" alt=""><img src="https://cdn.example/b.png" alt="">',
+    )}<input type="text"></section>`;
+    const { runner, shows } = setup(async () => [{ questionNumber: 1, correctOptions: ["a"] }]);
+
+    await runner.start().done;
+
+    expect(shows[1]?.description).toBe("Asking Gemini about 1 question with 2 images…");
+  });
+
   it("ends on an error card listing the failed question", async () => {
     document.body.innerHTML = TEXT_QUESTION + CHOICE_QUESTION;
     const { runner, last } = setup(async () => [

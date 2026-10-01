@@ -149,4 +149,59 @@ describe("extractAssessment", () => {
       { questionNumber: 2, code: "missing-prompt", message: "Question 2 has no readable prompt." },
     ]);
   });
+
+  it("lists the images of a question and its options for the AI", async () => {
+    document.body.innerHTML = `
+      <section data-testid="part-Submission_MultipleChoiceQuestion">
+        <div id="prompt-1"><div data-testid="cml-viewer">
+          Which part of the diagram stores data?
+          <img src="https://cdn.example/lifecycle.png" alt="Lifecycle diagram">
+          <img src="http://cdn.example/insecure.png" alt="Ignored">
+        </div></div>
+        <label class="rc-Option"><input type="radio" name="q">
+          <span data-testid="cml-viewer">Storage <img src="https://cdn.example/storage.png" alt=""></span>
+        </label>
+        <label class="rc-Option"><input type="radio" name="q">
+          <span data-testid="cml-viewer"><img src="data:image/png;base64,iVBORw0KGgo=" alt="Box B"></span>
+        </label>
+      </section>`;
+
+    const { questions } = await extractAssessment(document, { read: async () => "" });
+
+    expect(questions).toEqual([
+      {
+        questionNumber: 1,
+        type: "single_answer",
+        question: "Which part of the diagram stores data?",
+        // An option shown only as an image gets a name the answer can refer to.
+        options: ["Storage", "Image option 2"],
+        images: [
+          { url: "https://cdn.example/lifecycle.png", alt: "Lifecycle diagram" },
+          { url: "https://cdn.example/storage.png", alt: "", option: "Storage" },
+          { url: "data:image/png;base64,iVBORw0KGgo=", alt: "Box B", option: "Image option 2" },
+        ],
+      },
+    ]);
+  });
+
+  it("keeps a question whose prompt is only an image", async () => {
+    document.body.innerHTML = `
+      <section data-testid="part-Submission_TextQuestion">
+        <div id="prompt-1"><div data-testid="cml-viewer"><img src="https://cdn.example/q.png" alt=""></div></div>
+        <input type="text">
+      </section>`;
+
+    const { questions, issues } = await extractAssessment(document, { read: async () => "" });
+
+    expect(issues).toEqual([]);
+    expect(questions).toEqual([
+      {
+        questionNumber: 1,
+        type: "text_input",
+        question: "",
+        options: [],
+        images: [{ url: "https://cdn.example/q.png", alt: "" }],
+      },
+    ]);
+  });
 });

@@ -1,5 +1,6 @@
 import type { ProviderId } from "@/shared/types";
 import { normalizeServerUrl } from "./endpoint";
+import type { ImageAttachment } from "./images";
 import { getProvider } from "./providers";
 import { ANSWER_SCHEMA, type JsonSchema } from "./schemas";
 
@@ -44,6 +45,8 @@ export function buildGenerationRequest(
     schemaName?: string;
     /** The server URL of a self-hosted provider. */
     baseUrl?: string;
+    /** Sent after the prompt, each introduced by its label. Without any, the prompt is plain text. */
+    images?: ImageAttachment[];
   } = {},
 ): RequestSpec {
   const {
@@ -51,6 +54,7 @@ export function buildGenerationRequest(
     schema = ANSWER_SCHEMA,
     schemaName = "quiz_answers",
     baseUrl = "",
+    images = [],
   } = options;
   getProvider(providerId);
   const headers = authHeaders(providerId, apiKey);
@@ -67,7 +71,18 @@ export function buildGenerationRequest(
         method: "POST",
         headers,
         body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          contents: [
+            {
+              role: "user",
+              parts: [
+                { text: prompt },
+                ...images.flatMap((image) => [
+                  { text: image.label },
+                  { inline_data: { mime_type: image.mediaType, data: image.data } },
+                ]),
+              ],
+            },
+          ],
           generationConfig,
         }),
       },
@@ -78,21 +93,52 @@ export function buildGenerationRequest(
     const format = structured
       ? { type: "json_schema", name: schemaName, strict: true, schema }
       : { type: "json_object" };
+    const input =
+      images.length === 0
+        ? prompt
+        : [
+            {
+              role: "user",
+              content: [
+                { type: "input_text", text: prompt },
+                ...images.flatMap((image) => [
+                  { type: "input_text", text: image.label },
+                  {
+                    type: "input_image",
+                    image_url: `data:${image.mediaType};base64,${image.data}`,
+                  },
+                ]),
+              ],
+            },
+          ];
     return {
       url: "https://api.openai.com/v1/responses",
       options: {
         method: "POST",
         headers,
-        body: JSON.stringify({ model, input: prompt, text: { format }, store: false }),
+        body: JSON.stringify({ model, input, text: { format }, store: false }),
       },
     };
   }
 
   if (providerId === "anthropic") {
+    const content =
+      images.length === 0
+        ? prompt
+        : [
+            { type: "text", text: prompt },
+            ...images.flatMap((image) => [
+              { type: "text", text: image.label },
+              {
+                type: "image",
+                source: { type: "base64", media_type: image.mediaType, data: image.data },
+              },
+            ]),
+          ];
     const body: Record<string, unknown> = {
       model,
       max_tokens: 4096,
-      messages: [{ role: "user", content: prompt }],
+      messages: [{ role: "user", content }],
     };
     if (structured) {
       body.output_config = { format: { type: "json_schema", schema } };
@@ -112,9 +158,22 @@ export function buildGenerationRequest(
           groq: "https://api.groq.com/openai/v1",
           openrouter: "https://openrouter.ai/api/v1",
         }[providerId];
+  const content =
+    images.length === 0
+      ? prompt
+      : [
+          { type: "text", text: prompt },
+          ...images.flatMap((image) => [
+            { type: "text", text: image.label },
+            {
+              type: "image_url",
+              image_url: { url: `data:${image.mediaType};base64,${image.data}` },
+            },
+          ]),
+        ];
   const body: Record<string, unknown> = {
     model,
-    messages: [{ role: "user", content: prompt }],
+    messages: [{ role: "user", content }],
     stream: false,
   };
 

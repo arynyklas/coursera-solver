@@ -2,6 +2,7 @@ import { browser } from "wxt/browser";
 import type { ProviderId } from "@/shared/types";
 import { serverOriginPattern } from "./endpoint";
 import { providerErrorMessage, shouldRetryWithoutSchema } from "./errors";
+import type { ImageAttachment } from "./images";
 import { getProvider } from "./providers";
 import { buildGenerationRequest, type RequestSpec } from "./requests";
 import { extractResponseText } from "./responses";
@@ -88,42 +89,45 @@ export async function callProvider(
     schemaName: string;
     /** The server URL of a self-hosted provider. */
     baseUrl?: string;
+    /**
+     * Images to send after the prompt. A model that rejects them gets the request again without
+     * them, with `promptWithoutImages`, which says they were left out.
+     */
+    images?: { attachments: ImageAttachment[]; promptWithoutImages: string };
   },
   deps: ClientDeps = {},
 ): Promise<string> {
-  const { provider: providerId, apiKey, model, prompt, schema, schemaName, baseUrl } = call;
+  const { provider: providerId, apiKey, model, schema, schemaName, baseUrl } = call;
   const provider = getProvider(providerId);
-  const structured = provider.supportsStrictSchema;
-  let result = await requestJSON(
-    buildGenerationRequest(providerId, apiKey, model, prompt, {
-      structured,
-      schema,
-      schemaName,
-      baseUrl,
-    }),
-    providerId,
-    deps,
-  );
-
-  if (
-    !result.ok &&
-    structured &&
-    shouldRetryWithoutSchema(providerId, result.status, result.data)
-  ) {
-    result = await requestJSON(
+  let structured = provider.supportsStrictSchema;
+  let prompt = call.prompt;
+  let images = call.images?.attachments ?? [];
+  const send = () =>
+    requestJSON(
       buildGenerationRequest(providerId, apiKey, model, prompt, {
-        structured: false,
+        structured,
         schema,
         schemaName,
         baseUrl,
+        images,
       }),
       providerId,
       deps,
     );
-  }
 
-  if (!result.ok) {
-    throw new Error(providerErrorMessage(providerId, result.status, result.data));
+  let result = await send();
+  // A strict schema the model cannot follow, then images it cannot read, are each dropped once.
+  while (!result.ok) {
+    if (structured && shouldRetryWithoutSchema(providerId, result.status, result.data)) {
+      structured = false;
+    } else if (images.length > 0 && [400, 404, 413, 415, 422].includes(result.status)) {
+      // Providers word "this model takes no images" differently, so any request error counts.
+      images = [];
+      prompt = call.images?.promptWithoutImages ?? call.prompt;
+    } else {
+      throw new Error(providerErrorMessage(providerId, result.status, result.data));
+    }
+    result = await send();
   }
 
   const rawText = extractResponseText(providerId, result.data);

@@ -452,3 +452,24 @@ describe("cleanCodeAnswer", () => {
     expect(cleanCodeAnswer("before\n```py\nx\n```")).toBe("before\n```py\nx\n```");
   });
 });
+
+describe("applyAnswers with image-only options", () => {
+  it("selects an option shown only as an image by its generated name", async () => {
+    document.body.innerHTML = `
+      <section data-testid="part-Submission_MultipleChoiceQuestion">${prompt("Which diagram?")}
+        <label class="rc-Option"><input id="first" type="radio" name="q"><span data-testid="cml-viewer"><img src="https://cdn.example/a.png" alt=""></span></label>
+        <label class="rc-Option"><input id="second" type="radio" name="q"><span data-testid="cml-viewer"><img src="https://cdn.example/b.png" alt=""></span></label>
+      </section>`;
+    const { handles } = await extract();
+
+    const result = await applyAnswers(
+      [{ questionNumber: 1, correctOptions: ["Image option 2"] }],
+      handles,
+      noMonaco,
+    );
+
+    expect(result).toEqual({ applied: [1], failures: [] });
+    expect(byId<HTMLInputElement>("first").checked).toBe(false);
+    expect(byId<HTMLInputElement>("second").checked).toBe(true);
+  });
+});

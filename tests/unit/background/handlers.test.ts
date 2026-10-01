@@ -85,6 +85,76 @@ describe("background handlers", () => {
     );
   });
 
+  describe("quiz images", () => {
+    const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 7]);
+    const withImage: Question[] = [
+      {
+        ...questions[0],
+        questionNumber: 1,
+        type: "single_answer",
+        question: "Pick",
+        options: ["A", "B"],
+        images: [{ url: "https://cdn.example/diagram.png", alt: "Lifecycle diagram" }],
+      },
+    ];
+
+    it("sends each question image to a provider that reads images, labelled in the prompt", async () => {
+      await browser.storage.local.set({
+        aiProvider: "gemini",
+        aiProviderSettings: { gemini: { apiKey: "k", model: "gemini-3.7-flash", verifiedAt: 1 } },
+      });
+      const fetchStub = vi.fn<typeof fetch>(async (input) =>
+        String(input) === "https://cdn.example/diagram.png"
+          ? new Response(PNG)
+          : geminiResponse(
+              JSON.stringify({ answers: [{ questionNumber: 1, correctOptions: ["B"] }] }),
+            ),
+      );
+
+      await expect(
+        createBackgroundHandlers({ fetch: fetchStub }).solveQuestions(
+          { questions: withImage },
+          sender,
+        ),
+      ).resolves.toEqual([{ questionNumber: 1, correctOptions: ["B"] }]);
+
+      const [promptPart, ...imageParts] = JSON.parse(String(fetchStub.mock.calls.at(-1)?.[1]?.body))
+        .contents[0].parts;
+      // The prompt names the image instead of its signed URL.
+      expect(promptPart.text).toContain('"label": "Question 1 image 1"');
+      expect(promptPart.text).toContain('"alt": "Lifecycle diagram"');
+      expect(promptPart.text).not.toContain("cdn.example");
+      expect(imageParts).toEqual([
+        { text: "Question 1 image 1" },
+        { inline_data: { mime_type: "image/png", data: Buffer.from(PNG).toString("base64") } },
+      ]);
+    });
+
+    it("tells a provider without image input which image it cannot see", async () => {
+      await browser.storage.local.set({
+        aiProvider: "deepseek",
+        aiProviderSettings: {
+          deepseek: { apiKey: "k", model: "deepseek-v4-flash", verifiedAt: 1 },
+        },
+      });
+      const answers = JSON.stringify({ answers: [{ questionNumber: 1, correctOptions: ["A"] }] });
+      const fetchStub = vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(JSON.stringify({ choices: [{ message: { content: answers } }] }), {
+          status: 200,
+        }),
+      );
+
+      await createBackgroundHandlers({ fetch: fetchStub }).solveQuestions(
+        { questions: withImage },
+        sender,
+      );
+
+      expect(fetchStub).toHaveBeenCalledTimes(1);
+      const { content } = JSON.parse(String(fetchStub.mock.calls[0]?.[1]?.body)).messages[0];
+      expect(content).toContain('"notAttached": "DeepSeek does not read images"');
+    });
+  });
+
   describe("listModels", () => {
     const list = (stub: typeof fetch, provider: ProviderId = "vllm") =>
       createBackgroundHandlers({ fetch: stub }).listModels(

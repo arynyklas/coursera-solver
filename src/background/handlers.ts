@@ -1,5 +1,6 @@
 import { callProvider, requestJSON } from "@/ai/client";
 import { providerErrorMessage } from "@/ai/errors";
+import { loadQuestionImages, unattachedImages } from "@/ai/images";
 import { createDialoguePrompt, createQuizPrompt } from "@/ai/prompts";
 import { isProviderId, PROVIDERS } from "@/ai/providers";
 import { buildModelListRequest, buildVerificationRequest } from "@/ai/requests";
@@ -61,21 +62,40 @@ export function createBackgroundHandlers(deps: BackgroundDeps = {}): Handlers<Ba
       if (!Array.isArray(questions) || questions.length === 0) {
         throw new Error("No quiz questions were provided to the AI service.");
       }
-      const { provider, apiKey, model, baseUrl } = await loadConfiguredProvider();
-      const rawText = await withKeepAlive(() =>
-        callProvider(
+      const { provider, label, apiKey, model, baseUrl } = await loadConfiguredProvider();
+      const rawText = await withKeepAlive(async () => {
+        const { attachments, notes } = PROVIDERS[provider].readsImages
+          ? await loadQuestionImages(questions, deps.fetch ?? fetch)
+          : {
+              attachments: [],
+              notes: unattachedImages(questions, `${label} does not read images`),
+            };
+        // If the model refuses images, each one is noted as rejected unless it already had a reason.
+        const rejected = new Map([
+          ...unattachedImages(questions, "the model did not accept images"),
+          ...notes,
+        ]);
+        return callProvider(
           {
             provider,
             apiKey,
             model,
             baseUrl,
-            prompt: createQuizPrompt(questions),
+            prompt: createQuizPrompt(questions, notes),
+            ...(attachments.length > 0
+              ? {
+                  images: {
+                    attachments,
+                    promptWithoutImages: createQuizPrompt(questions, rejected),
+                  },
+                }
+              : {}),
             schema: ANSWER_SCHEMA,
             schemaName: "quiz_answers",
           },
           deps,
-        ),
-      );
+        );
+      });
       return parseAndValidateAnswers(rawText, questions);
     },
 

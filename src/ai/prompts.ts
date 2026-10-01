@@ -1,10 +1,43 @@
 import type { DialogueMessage, Question } from "@/shared/types";
+import { imageLabel } from "./images";
 
-export function createQuizPrompt(questions: Question[]): string {
+const IMAGE_INSTRUCTIONS = `
+
+IMAGES:
+- Questions with images list them under "images" by label. Each attached image follows this text, introduced by its label; treat it as part of its question.
+- An image with an "option" shows that answer option.
+- An image with "notAttached" was not sent; answer from the text and its "alt" text.`;
+
+/**
+ * `imageNotes` names, by image label, the images this request does not carry and why; the rest
+ * are attached after the prompt (see `loadQuestionImages`). Image URLs never reach the prompt.
+ */
+export function createQuizPrompt(
+  questions: Question[],
+  imageNotes: ReadonlyMap<string, string> = new Map(),
+): string {
+  const hasImages = questions.some(({ images }) => images?.length);
+  const input = questions.map(({ images, ...question }) =>
+    images?.length
+      ? {
+          ...question,
+          images: images.map(({ alt, option }, index) => {
+            const label = imageLabel(question.questionNumber, index);
+            const note = imageNotes.get(label);
+            return {
+              label,
+              ...(alt ? { alt } : {}),
+              ...(option ? { option } : {}),
+              ...(note ? { notAttached: note } : {}),
+            };
+          }),
+        }
+      : question,
+  );
   return `You are an expert subject-matter assistant. Solve every quiz question in the JSON input.
 
 INPUT QUESTIONS:
-${JSON.stringify(questions, null, 2)}
+${JSON.stringify(input, null, 2)}${hasImages ? IMAGE_INSTRUCTIONS : ""}
 
 OUTPUT REQUIREMENTS:
 - Return one JSON object with exactly one key named "answers".

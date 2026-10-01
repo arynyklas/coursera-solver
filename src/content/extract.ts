@@ -23,7 +23,7 @@ export async function extractAssessment(
     message: `Question ${questionNumber} has no readable prompt.`,
   }));
 
-  for (const { questionNumber, prompt, type, options, handle } of blocks) {
+  for (const { questionNumber, prompt, type, options, handle, images } of blocks) {
     if (handle.kind === "unsupported" || type === "unknown") {
       issues.push({
         questionNumber,
@@ -33,7 +33,13 @@ export async function extractAssessment(
       continue;
     }
 
-    const question: Question = { questionNumber, type, question: prompt, options };
+    const question: Question = {
+      questionNumber,
+      type,
+      question: prompt,
+      options,
+      ...(images.length > 0 ? { images } : {}),
+    };
     if (handle.kind !== "code") {
       questions.push(question);
       handles.set(questionNumber, { kind: handle.kind, block: handle.block, prompt });

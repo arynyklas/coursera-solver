@@ -37,10 +37,13 @@ export function createSolveRunner(deps: SolveDeps): SolveRunner {
 
       const label = await deps.providerLabel();
       const count = questions.length;
+      const imageCount = questions.reduce((total, { images }) => total + (images?.length ?? 0), 0);
+      const images =
+        imageCount === 0 ? "" : ` with ${imageCount} ${imageCount === 1 ? "image" : "images"}`;
       banner.show({
         tone: "info",
         title,
-        description: `Asking ${label} about ${count} ${count === 1 ? "question" : "questions"}…`,
+        description: `Asking ${label} about ${count} ${count === 1 ? "question" : "questions"}${images}…`,
       });
       const answers = await deps.requestAnswers(questions);
 

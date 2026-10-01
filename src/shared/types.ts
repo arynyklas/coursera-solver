@@ -15,6 +15,15 @@ export type SupportedQuestionType =
   | "essay"
   | "code_expression";
 
+/** An image shown in a question's prompt or in one of its answer options. */
+export interface QuestionImage {
+  /** An `https:` or `data:image/` URL; other images are left out. */
+  url: string;
+  alt: string;
+  /** The option the image belongs to; absent for images in the question itself. */
+  option?: string;
+}
+
 export interface Question {
   questionNumber: number;
   type: SupportedQuestionType;
@@ -22,6 +31,8 @@ export interface Question {
   options: string[];
   language?: string;
   currentCode?: string;
+  /** Present only when the question shows images. */
+  images?: QuestionImage[];
 }
 
 export interface Answer {

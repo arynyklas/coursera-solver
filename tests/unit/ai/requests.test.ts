@@ -7,6 +7,7 @@ import {
   buildVerificationRequest,
 } from "@/ai/requests";
 import { ANSWER_SCHEMA } from "@/ai/schemas";
+import type { ProviderId } from "@/shared/types";
 
 const apiKey = "test-secret";
 const prompt = "Return JSON.";
@@ -74,6 +75,76 @@ describe("buildGenerationRequest", () => {
     expect(() => buildGenerationRequest("vllm", "", "Qwen/Qwen3-8B", prompt)).toThrow(
       "Enter the server URL with http:// or https://",
     );
+  });
+
+  it("attaches labelled images in each provider's own message format", () => {
+    const images = [{ label: "Question 2 image 1", mediaType: "image/png", data: "iVBORw0KGgo=" }];
+    const body = (providerId: ProviderId) =>
+      JSON.parse(
+        String(
+          buildGenerationRequest(providerId, apiKey, "model", prompt, {
+            images,
+            baseUrl: serverUrl,
+          }).options.body,
+        ),
+      );
+
+    expect(body("gemini").contents).toEqual([
+      {
+        role: "user",
+        parts: [
+          { text: prompt },
+          { text: "Question 2 image 1" },
+          { inline_data: { mime_type: "image/png", data: "iVBORw0KGgo=" } },
+        ],
+      },
+    ]);
+    expect(body("openai").input).toEqual([
+      {
+        role: "user",
+        content: [
+          { type: "input_text", text: prompt },
+          { type: "input_text", text: "Question 2 image 1" },
+          { type: "input_image", image_url: "data:image/png;base64,iVBORw0KGgo=" },
+        ],
+      },
+    ]);
+    expect(body("anthropic").messages).toEqual([
+      {
+        role: "user",
+        content: [
+          { type: "text", text: prompt },
+          { type: "text", text: "Question 2 image 1" },
+          {
+            type: "image",
+            source: { type: "base64", media_type: "image/png", data: "iVBORw0KGgo=" },
+          },
+        ],
+      },
+    ]);
+    for (const providerId of ["xai", "groq", "openrouter", "vllm"] as const) {
+      expect(body(providerId).messages).toEqual([
+        {
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            { type: "text", text: "Question 2 image 1" },
+            { type: "image_url", image_url: { url: "data:image/png;base64,iVBORw0KGgo=" } },
+          ],
+        },
+      ]);
+    }
+  });
+
+  it("sends the prompt as plain text when there are no images", () => {
+    const body = (providerId: ProviderId) =>
+      JSON.parse(String(buildGenerationRequest(providerId, apiKey, "model", prompt).options.body));
+
+    expect(body("gemini").contents).toEqual([{ role: "user", parts: [{ text: prompt }] }]);
+    expect(body("openai").input).toBe(prompt);
+    expect(body("anthropic").messages).toEqual([{ role: "user", content: prompt }]);
+    // DeepSeek accepts only string content.
+    expect(body("deepseek").messages).toEqual([{ role: "user", content: prompt }]);
   });
 });
 

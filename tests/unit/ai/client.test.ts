@@ -60,6 +60,74 @@ describe("callProvider", () => {
     );
   });
 
+  describe("with images", () => {
+    const image = { label: "Question 1 image 1", mediaType: "image/png", data: "iVBORw0KGgo=" };
+    const groqCall = { ...call, provider: "groq" as const, model: "openai/gpt-oss-120b" };
+
+    it("retries once with the text-only prompt when the model rejects image input", async () => {
+      const fetchStub = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({ error: { message: "messages.0.content must be a string" } }),
+            {
+              status: 400,
+            },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ choices: [{ message: { content: '{"answers":[]}' } }] }), {
+            status: 200,
+          }),
+        );
+
+      await expect(
+        callProvider(
+          { ...groqCall, images: { attachments: [image], promptWithoutImages: "Text only." } },
+          { fetch: fetchStub },
+        ),
+      ).resolves.toBe('{"answers":[]}');
+
+      expect(fetchStub).toHaveBeenCalledTimes(2);
+      const first = JSON.parse(String(fetchStub.mock.calls[0]?.[1]?.body));
+      const retry = JSON.parse(String(fetchStub.mock.calls[1]?.[1]?.body));
+      expect(first.messages[0].content).toContainEqual({
+        type: "image_url",
+        image_url: { url: "data:image/png;base64,iVBORw0KGgo=" },
+      });
+      expect(retry.messages).toEqual([{ role: "user", content: "Text only." }]);
+    });
+
+    it("reports the provider's error after the text-only retry fails too", async () => {
+      // Each call needs its own Response: a body can be read only once.
+      const fetchStub = vi.fn<typeof fetch>(
+        async () =>
+          new Response(JSON.stringify({ error: { message: "Invalid model" } }), { status: 400 }),
+      );
+
+      await expect(
+        callProvider(
+          { ...groqCall, images: { attachments: [image], promptWithoutImages: "Text only." } },
+          { fetch: fetchStub },
+        ),
+      ).rejects.toThrow("Groq: Invalid model");
+      expect(fetchStub).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not retry a failed request that carried no images", async () => {
+      const fetchStub = vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(
+          new Response(JSON.stringify({ error: { message: "Invalid model" } }), { status: 400 }),
+        );
+
+      await expect(callProvider(groqCall, { fetch: fetchStub })).rejects.toThrow(
+        "Groq: Invalid model",
+      );
+      expect(fetchStub).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe("when a self-hosted server cannot be reached", () => {
     const vllmCall = {
       ...call,

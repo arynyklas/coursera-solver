@@ -1,0 +1,124 @@
+import { describe, expect, it, vi } from "vitest";
+import { IMAGE_LIMITS, loadQuestionImages } from "@/ai/images";
+import type { Question } from "@/shared/types";
+
+const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+const JPEG = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 4, 5]);
+const WEBP = Uint8Array.from([0x52, 0x49, 0x46, 0x46, 9, 0, 0, 0, 0x57, 0x45, 0x42, 0x50, 6]);
+const SVG = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"></svg>');
+
+function base64(bytes: Uint8Array): string {
+  return Buffer.from(bytes).toString("base64");
+}
+
+function question(questionNumber: number, urls: string[]): Question {
+  return {
+    questionNumber,
+    type: "single_answer",
+    question: `Question ${questionNumber}`,
+    options: ["A", "B"],
+    images: urls.map((url) => ({ url, alt: "" })),
+  };
+}
+
+/** Serves each URL's bytes; a URL missing from `files` is a 404. */
+function serve(files: Record<string, Uint8Array<ArrayBuffer>>) {
+  return vi.fn(async (input: RequestInfo | URL) => {
+    const bytes = files[String(input)];
+    // The content type is ignored: the format comes from the bytes.
+    return bytes
+      ? new Response(bytes, { headers: { "Content-Type": "application/octet-stream" } })
+      : new Response(null, { status: 404 });
+  });
+}
+
+describe("loadQuestionImages", () => {
+  it("attaches each image as base64 under its question's label, in a format every provider reads", async () => {
+    const fetch = serve({
+      "https://cdn.example/a.png": PNG,
+      "https://cdn.example/b.jpg": JPEG,
+      "https://cdn.example/c.webp": WEBP,
+    });
+
+    const { attachments, notes } = await loadQuestionImages(
+      [
+        question(2, ["https://cdn.example/a.png", "https://cdn.example/b.jpg"]),
+        question(5, ["https://cdn.example/c.webp"]),
+      ],
+      fetch,
+    );
+
+    expect(attachments).toEqual([
+      { label: "Question 2 image 1", mediaType: "image/png", data: base64(PNG) },
+      { label: "Question 2 image 2", mediaType: "image/jpeg", data: base64(JPEG) },
+      { label: "Question 5 image 1", mediaType: "image/webp", data: base64(WEBP) },
+    ]);
+    expect(notes).toEqual(new Map());
+  });
+
+  it("notes every image it cannot attach and why, and never fetches a plain http URL", async () => {
+    const fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("offline.png")) throw new TypeError("Failed to fetch");
+      if (url.endsWith("drawing.svg")) return new Response(SVG);
+      if (url.endsWith("huge.png")) return new Response(new Uint8Array([...PNG, ...PNG]));
+      return new Response(null, { status: 404 });
+    });
+
+    const { attachments, notes } = await loadQuestionImages(
+      [
+        question(1, [
+          "http://cdn.example/plain.png",
+          "https://cdn.example/offline.png",
+          "https://cdn.example/missing.png",
+          "https://cdn.example/drawing.svg",
+          "https://cdn.example/huge.png",
+        ]),
+      ],
+      fetch,
+      { ...IMAGE_LIMITS, bytes: PNG.length },
+    );
+
+    expect(attachments).toEqual([]);
+    expect(notes).toEqual(
+      new Map([
+        ["Question 1 image 1", "could not be loaded"],
+        ["Question 1 image 2", "could not be loaded"],
+        ["Question 1 image 3", "could not be loaded"],
+        ["Question 1 image 4", "is not a PNG, JPEG or WebP image"],
+        ["Question 1 image 5", "is too large to send"],
+      ]),
+    );
+    expect(fetch.mock.calls.map(([input]) => String(input))).not.toContain(
+      "http://cdn.example/plain.png",
+    );
+  });
+
+  it("stops at the image count and total size limits of one request", async () => {
+    const fetch = serve({
+      "https://cdn.example/1.png": PNG,
+      "https://cdn.example/2.png": PNG,
+      "https://cdn.example/3.png": PNG,
+    });
+
+    const byCount = await loadQuestionImages(
+      [question(1, ["https://cdn.example/1.png", "https://cdn.example/2.png"])],
+      fetch,
+      { ...IMAGE_LIMITS, count: 1 },
+    );
+    expect(byCount.attachments.map(({ label }) => label)).toEqual(["Question 1 image 1"]);
+    expect(byCount.notes).toEqual(
+      new Map([["Question 1 image 2", "is over the limit of images per request"]]),
+    );
+
+    const bySize = await loadQuestionImages(
+      [question(1, ["https://cdn.example/1.png", "https://cdn.example/2.png"])],
+      fetch,
+      { ...IMAGE_LIMITS, totalBytes: PNG.length + 1 },
+    );
+    expect(bySize.attachments.map(({ label }) => label)).toEqual(["Question 1 image 1"]);
+    expect(bySize.notes).toEqual(
+      new Map([["Question 1 image 2", "would make the request too large"]]),
+    );
+  });
+});

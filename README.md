@@ -27,6 +27,7 @@ The extension never submits anything for you. Quiz answers are filled in for you
 * **📋 Question Extractor:** Extracts the quiz and assignment questions on the page as clean JSON, ready to copy. No API key needed!
 * **🎯 Course Requirements:** Finds Coursera activities that count toward the course grade, groups them by module, shows your status and grade on each the way Coursera's Grades page does, and opens them directly from the popup.
 * **🤖 Multi-Provider Quiz Solver:** Fills in multiple-choice, text-input, essay, and Monaco code-expression questions with Gemini, OpenAI, Claude, xAI, DeepSeek, Groq, OpenRouter, or your own [vLLM](https://docs.vllm.ai) server. It never submits: you review the answers, then submit yourself.
+* **🖼️ Questions with Images:** Diagrams and pictures in a question or its answer options are sent to the model along with the text (PNG, JPEG, and WebP, up to 16 per quiz). Gemini, OpenAI, Claude, xAI, OpenRouter, and vLLM receive them; if the chosen model refuses images, the quiz is sent again as text only. DeepSeek and the listed Groq models read text only and are told which images they cannot see. An option shown only as an image is named **Image option N** so the model can pick it.
 * **💬 Dialogue Answer Drafting:** Reads the current Coursera Coach question and fills a suggested answer into the message box for you to review and send.
 * **🧪 Dry Run:** Shows how the extension reads the current assessment (selector strategy, question types, and parser issues) as a copyable report. It does not call an AI provider or change anything on the page.
 * **🎛️ Model Choice:** Pick from curated current models—including multiple Gemini, GPT, and Claude generations—or enter a custom model ID. For vLLM, pick from the models your server lists.
@@ -173,6 +174,7 @@ If the extension says that authentication data is missing, keep the extension en
 
 * API keys are stored in plain text in `chrome.storage.local` in your Chrome profile. The extension does not encrypt them.
 * Keys are sent only to the provider you select. API usage, billing, quotas, and model access are controlled by your provider account. For vLLM, your key and the quiz content go to the server URL you enter; use `https://` for a server outside your own machine or network.
+* When you solve a quiz, its text and the images in its questions go to the provider you selected. The extension downloads those images from the page's own image addresses (Coursera's image CDN allows it) and never requests plain `http://` image URLs.
 * **Save & verify** checks Gemini, OpenAI, Claude, xAI, and Groq keys with a model-metadata request that generates no text. For DeepSeek and OpenRouter, verification sends a real, billed completion request (capped at 8 output tokens). For vLLM, it checks that the server lists the chosen model.
 * The extension requests only the `storage` permission. Its host access is limited to Coursera and the seven hosted provider APIs. For vLLM, Chrome asks for access to your server's origin alone, the first time you load its models.
 

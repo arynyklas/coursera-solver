@@ -1,7 +1,7 @@
 import { ExternalLink, Eye, EyeOff, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { normalizeServerUrl } from "@/ai/endpoint";
-import { isProviderId, PROVIDER_IDS, PROVIDERS } from "@/ai/providers";
+import { effortFor, isProviderId, PROVIDER_IDS, PROVIDERS, takesEffort } from "@/ai/providers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,7 +23,7 @@ import { hasServerAccess, requestServerAccess } from "@/popup/lib/server-access"
 import type { Navigate } from "@/popup/navigation";
 import { BACKGROUND_FALLBACKS, errorMessage, sendToBackground } from "@/shared/messaging";
 import { isProviderReady, type ProviderSettingsMap } from "@/shared/storage";
-import type { ProviderId } from "@/shared/types";
+import type { ProviderId, ReasoningEffort } from "@/shared/types";
 
 const CUSTOM_MODEL = "__custom__";
 const SUCCESS_REDIRECT_MS = 750;
@@ -32,12 +32,20 @@ const FIELD_CLASS = "flex flex-col gap-[5px]";
 const LABEL_CLASS = "text-xs";
 const CONTROL_CLASS = "h-[34px] w-full rounded-md px-2.5 text-[12.5px] md:text-[12.5px]";
 
+const EFFORT_LABELS: Record<ReasoningEffort, string> = {
+  none: "None — No thinking",
+  low: "Low — Fast",
+  medium: "Medium — Balanced",
+  high: "High — Thorough",
+};
+
 interface Form {
   apiKey: string;
   modelChoice: string;
   customModel: string;
   /** The server URL as typed; self-hosted providers only. */
   baseUrl: string;
+  effort: ReasoningEffort;
 }
 
 interface Status {
@@ -58,6 +66,7 @@ function formFor(provider: ProviderId, settings: ProviderSettingsMap): Form {
     modelChoice: isPreset ? model : CUSTOM_MODEL,
     customModel: isPreset ? "" : model,
     baseUrl: saved?.baseUrl ?? "",
+    effort: effortFor(provider, saved?.effort),
   };
 }
 
@@ -75,7 +84,13 @@ export function Settings({
   const [form, setForm] = useState<Form>(() => {
     const { draft } = config;
     return draft
-      ? { apiKey: draft.apiKey, modelChoice: draft.model, customModel: "", baseUrl: draft.baseUrl }
+      ? {
+          apiKey: draft.apiKey,
+          modelChoice: draft.model,
+          customModel: "",
+          baseUrl: draft.baseUrl,
+          effort: effortFor(draft.provider, draft.effort),
+        }
       : formFor(config.activeProvider, config.settings);
   });
   const [showKey, setShowKey] = useState(false);
@@ -143,6 +158,7 @@ export function Settings({
             baseUrl,
             apiKey,
             model: current.modelChoice,
+            effort: current.effort,
           });
         } else {
           if (!(await hasServerAccess(baseUrl)) || !isLatest()) return;
@@ -251,7 +267,13 @@ export function Settings({
       const server = baseUrl === undefined ? {} : { baseUrl };
       if (baseUrl !== undefined) {
         // The first await of the click: Chrome prompts only during a user gesture.
-        await requestServerAccess({ provider: target, baseUrl, apiKey, model });
+        await requestServerAccess({
+          provider: target,
+          baseUrl,
+          apiKey,
+          model,
+          effort: form.effort,
+        });
       }
       const reply = await sendToBackground("verifyProvider", {
         provider: target,
@@ -260,7 +282,7 @@ export function Settings({
         ...server,
       });
       // The user verified this key, so it is stored even if the popup view has closed meanwhile.
-      await save(target, { apiKey, model, ...server, verifiedAt: Date.now() });
+      await save(target, { apiKey, model, effort: form.effort, ...server, verifiedAt: Date.now() });
       if (!mounted.current) return;
       setStatus({ tone: "success", text: reply.message || `${label} is connected.` });
       redirect.current = window.setTimeout(() => onNavigate("home"), SUCCESS_REDIRECT_MS);
@@ -391,6 +413,36 @@ export function Settings({
     </div>
   );
 
+  const effortField = (
+    <div className={FIELD_CLASS}>
+      <Label htmlFor="effort" className={LABEL_CLASS}>
+        Reasoning effort
+      </Label>
+      <Select
+        value={form.effort}
+        onValueChange={(value) => {
+          const effort = provider.efforts.find((level) => level === value);
+          if (effort) setForm((current) => ({ ...current, effort }));
+        }}
+        disabled={verifying}
+      >
+        <SelectTrigger id="effort" className={CONTROL_CLASS}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {provider.efforts.map((effort) => (
+            <SelectItem key={effort} value={effort}>
+              {EFFORT_LABELS[effort]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <span className={HINT_CLASS}>
+        How long the model thinks before it answers. Lower answers sooner; High may time out.
+      </span>
+    </div>
+  );
+
   const apiKeyField = (
     <div className={FIELD_CLASS}>
       <Label htmlFor="api-key" className={LABEL_CLASS}>
@@ -467,10 +519,14 @@ export function Settings({
             {serverUrlField}
             {apiKeyField}
             {serverModelField}
+            {effortField}
           </>
         ) : (
           <>
             {presetModelFields}
+            {takesEffort(editingProvider, isCustom ? form.customModel : form.modelChoice)
+              ? effortField
+              : null}
             {apiKeyField}
           </>
         )}

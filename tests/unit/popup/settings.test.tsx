@@ -89,7 +89,12 @@ describe("provider settings", () => {
     const stored = await browser.storage.local.get(null);
     expect(stored.aiProvider).toBe("gemini");
     expect(stored.aiProviderSettings).toEqual({
-      gemini: { apiKey: "AIza-test", model: "gemini-3.7-flash", verifiedAt: expect.any(Number) },
+      gemini: {
+        apiKey: "AIza-test",
+        model: "gemini-3.7-flash",
+        effort: "medium",
+        verifiedAt: expect.any(Number),
+      },
     });
     expect(stored).not.toHaveProperty("userApiKey");
   });
@@ -137,11 +142,51 @@ describe("provider settings", () => {
       const stored = await browser.storage.local.get(null);
       expect(stored.aiProvider).toBe("gemini");
       expect(stored.aiProviderSettings).toEqual({
-        gemini: { apiKey: "AIza-test", model: "gemini-3.7-flash", verifiedAt: expect.any(Number) },
+        gemini: {
+          apiKey: "AIza-test",
+          model: "gemini-3.7-flash",
+          effort: "medium",
+          verifiedAt: expect.any(Number),
+        },
       });
     });
     await sleep(1000);
     expect(timers).not.toHaveBeenCalledWith(expect.any(Function), 750);
+  });
+
+  it("saves the reasoning effort chosen for the provider", async () => {
+    answerBackground({ verifyProvider: { message: "Gemini is connected." } });
+    const user = userEvent.setup();
+    renderPopup();
+
+    const effort = await screen.findByRole("combobox", { name: "Reasoning effort" });
+    expect(effort.textContent).toContain("Medium");
+    await user.click(effort);
+    await user.click(await screen.findByRole("option", { name: "Low — Fast" }));
+    await user.type(screen.getByLabelText("API key"), "AIza-test");
+    await user.click(screen.getByRole("button", { name: "Save & verify" }));
+    await screen.findByText("Gemini is connected.");
+
+    const stored = await browser.storage.local.get(null);
+    expect(stored.aiProviderSettings).toEqual({
+      gemini: {
+        apiKey: "AIza-test",
+        model: "gemini-3.7-flash",
+        effort: "low",
+        verifiedAt: expect.any(Number),
+      },
+    });
+  });
+
+  it("offers no reasoning effort for a model that does not think", async () => {
+    await browser.storage.local.set({
+      aiProvider: "anthropic",
+      aiProviderSettings: { anthropic: { apiKey: "", model: "claude-haiku-4-5" } },
+    });
+    renderPopup();
+
+    await screen.findByRole("combobox", { name: "Model" });
+    expect(screen.queryByRole("combobox", { name: "Reasoning effort" })).toBeNull();
   });
 
   describe("vLLM server", () => {
@@ -188,9 +233,31 @@ describe("provider settings", () => {
           apiKey: "",
           model: "Qwen/Qwen3-8B",
           baseUrl: "http://localhost:8000/v1",
+          effort: "medium",
           verifiedAt: expect.any(Number),
         },
       });
+    });
+
+    it("lets a vLLM server answer without thinking", async () => {
+      stubPermissions("request", Promise.resolve(true));
+      answerBackground({
+        listModels: { models: ["Qwen/Qwen3-8B"] },
+        verifyProvider: { message: "vLLM is connected." },
+      });
+      const user = userEvent.setup();
+      renderPopup();
+
+      await user.type(await screen.findByLabelText("Server URL"), "http://localhost:8000");
+      await user.click(screen.getByRole("button", { name: "Load models" }));
+      await screen.findByText("1 model available.");
+      await user.click(screen.getByRole("combobox", { name: "Reasoning effort" }));
+      await user.click(await screen.findByRole("option", { name: "None — No thinking" }));
+      await user.click(screen.getByRole("button", { name: "Save & verify" }));
+      await screen.findByText("vLLM is connected.");
+
+      const stored = await browser.storage.local.get(null);
+      expect(stored.aiProviderSettings).toMatchObject({ vllm: { effort: "none" } });
     });
 
     it("loads nothing when Chrome is denied access to the server", async () => {
@@ -244,6 +311,7 @@ describe("provider settings", () => {
         baseUrl: "http://gpu.lan:8000/v1",
         apiKey: "",
         model: "",
+        effort: "none",
       });
       stubPermissions("contains", Promise.resolve(false));
       renderPopup();
@@ -252,6 +320,9 @@ describe("provider settings", () => {
       expect(provider.textContent).toContain("vLLM");
       expect((screen.getByLabelText("Server URL") as HTMLInputElement).value).toBe(
         "http://gpu.lan:8000/v1",
+      );
+      expect(screen.getByRole("combobox", { name: "Reasoning effort" }).textContent).toContain(
+        "None",
       );
       expect(sendToBackground).not.toHaveBeenCalled();
     });

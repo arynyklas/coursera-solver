@@ -1,5 +1,5 @@
 import { browser } from "wxt/browser";
-import type { ProviderId } from "@/shared/types";
+import type { ProviderId, ReasoningEffort } from "@/shared/types";
 import { serverOriginPattern } from "./endpoint";
 import { providerErrorMessage, shouldRetryWithoutSchema } from "./errors";
 import type { ImageAttachment } from "./images";
@@ -94,6 +94,8 @@ export async function callProvider(
      * them, with `promptWithoutImages`, which says they were left out.
      */
     images?: { attachments: ImageAttachment[]; promptWithoutImages: string };
+    /** How long the model may think. A model that refuses it gets the request again without. */
+    effort?: ReasoningEffort;
   },
   deps: ClientDeps = {},
 ): Promise<string> {
@@ -102,6 +104,7 @@ export async function callProvider(
   let structured = provider.supportsStrictSchema;
   let prompt = call.prompt;
   let images = call.images?.attachments ?? [];
+  let effort = call.effort;
   const send = () =>
     requestJSON(
       buildGenerationRequest(providerId, apiKey, model, prompt, {
@@ -110,28 +113,36 @@ export async function callProvider(
         schemaName,
         baseUrl,
         images,
+        effort,
       }),
       providerId,
       deps,
     );
+  const dropImages = () => {
+    images = [];
+    prompt = call.images?.promptWithoutImages ?? call.prompt;
+  };
 
   let result = await send();
-  // A strict schema the model cannot follow, then images it cannot read, are each dropped once.
-  // An error that names images drops them first, so the schema stays.
+  // Each optional part of the request goes at most once: images or the effort when the error
+  // names them, then a strict schema the model cannot follow, then images on any request error,
+  // since providers word "this model takes no images" differently.
   while (!result.ok) {
-    // Providers word "this model takes no images" differently, so any request error counts.
-    const imagesRefused = images.length > 0 && [400, 404, 413, 415, 422].includes(result.status);
-    const namesImages =
-      imagesRefused && /image|vision|multimodal/i.test(JSON.stringify(result.data));
-    if (
-      !namesImages &&
-      structured &&
-      shouldRetryWithoutSchema(providerId, result.status, result.data)
+    const requestError = [400, 404, 413, 415, 422].includes(result.status);
+    const message = JSON.stringify(result.data);
+    if (images.length > 0 && requestError && /image|vision|multimodal/i.test(message)) {
+      dropImages();
+    } else if (
+      effort &&
+      requestError &&
+      // OpenRouter answers 404 when no endpoint of the model takes every parameter sent.
+      /reasoning|effort|thinking|requested parameters/i.test(message)
     ) {
+      effort = undefined;
+    } else if (structured && shouldRetryWithoutSchema(providerId, result.status, result.data)) {
       structured = false;
-    } else if (imagesRefused) {
-      images = [];
-      prompt = call.images?.promptWithoutImages ?? call.prompt;
+    } else if (images.length > 0 && requestError) {
+      dropImages();
     } else {
       throw new Error(providerErrorMessage(providerId, result.status, result.data));
     }

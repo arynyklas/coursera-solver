@@ -1,8 +1,16 @@
-import type { ProviderId } from "@/shared/types";
+import type { ProviderId, ReasoningEffort } from "@/shared/types";
 import { normalizeServerUrl } from "./endpoint";
 import type { ImageAttachment } from "./images";
-import { getProvider } from "./providers";
+import { getProvider, takesEffort } from "./providers";
 import { ANSWER_SCHEMA, type JsonSchema } from "./schemas";
+
+/** Google's own effort-to-budget mapping for Gemini 2.5, which thinks by token budget. */
+const GEMINI_THINKING_BUDGETS: Record<ReasoningEffort, number> = {
+  none: 0,
+  low: 1024,
+  medium: 8192,
+  high: 24576,
+};
 
 export interface RequestSpec {
   url: string;
@@ -47,6 +55,8 @@ export function buildGenerationRequest(
     baseUrl?: string;
     /** Sent after the prompt, each introduced by its label. Without any, the prompt is plain text. */
     images?: ImageAttachment[];
+    /** How long the model may think. Nothing is sent without one, or to a model that takes none. */
+    effort?: ReasoningEffort;
   } = {},
 ): RequestSpec {
   const {
@@ -58,13 +68,20 @@ export function buildGenerationRequest(
   } = options;
   getProvider(providerId);
   const headers = authHeaders(providerId, apiKey);
+  const effort = takesEffort(providerId, model) ? options.effort : undefined;
 
   if (providerId === "gemini") {
-    const generationConfig: Record<string, unknown> = {
-      temperature: 0.1,
-      responseMimeType: "application/json",
-    };
+    // Gemini 3 thinks by level, and Google warns that a temperature below its default can make
+    // it loop; older models think by token budget and keep the low temperature.
+    const budgeted = /^gemini-[12]\./.test(model);
+    const generationConfig: Record<string, unknown> = { responseMimeType: "application/json" };
+    if (budgeted) generationConfig.temperature = 0.1;
     if (structured) generationConfig.responseSchema = schema;
+    if (effort) {
+      generationConfig.thinkingConfig = budgeted
+        ? { thinkingBudget: GEMINI_THINKING_BUDGETS[effort] }
+        : { thinkingLevel: effort };
+    }
     return {
       url: `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
       options: {
@@ -111,13 +128,11 @@ export function buildGenerationRequest(
               ],
             },
           ];
+    const body: Record<string, unknown> = { model, input, text: { format }, store: false };
+    if (effort) body.reasoning = { effort };
     return {
       url: "https://api.openai.com/v1/responses",
-      options: {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ model, input, text: { format }, store: false }),
-      },
+      options: { method: "POST", headers, body: JSON.stringify(body) },
     };
   }
 
@@ -140,8 +155,11 @@ export function buildGenerationRequest(
       max_tokens: 4096,
       messages: [{ role: "user", content }],
     };
-    if (structured) {
-      body.output_config = { format: { type: "json_schema", schema } };
+    if (structured || effort) {
+      body.output_config = {
+        ...(structured ? { format: { type: "json_schema", schema } } : {}),
+        ...(effort ? { effort } : {}),
+      };
     }
     return {
       url: "https://api.anthropic.com/v1/messages",
@@ -189,6 +207,11 @@ export function buildGenerationRequest(
   if (providerId === "groq") body.max_completion_tokens = 4096;
   if (providerId === "openrouter" && structured) {
     body.provider = { require_parameters: true };
+  }
+  if (effort) {
+    // OpenRouter maps its own reasoning object onto each model's setting.
+    if (providerId === "openrouter") body.reasoning = { effort };
+    else body.reasoning_effort = effort;
   }
 
   return {

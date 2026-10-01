@@ -1,9 +1,11 @@
-import type { ProviderId } from "@/shared/types";
+import type { ProviderId, ReasoningEffort } from "@/shared/types";
 
 export interface ProviderModel {
   id: string;
   label: string;
   hint: string;
+  /** False for a model that takes no reasoning effort: it does not think unless asked to. */
+  takesEffort?: false;
 }
 
 export interface ProviderConfig {
@@ -19,6 +21,8 @@ export interface ProviderConfig {
    * request is then repeated without images.
    */
   readsImages: boolean;
+  /** The reasoning efforts Settings offers. `buildGenerationRequest` maps them per provider. */
+  efforts: ReasoningEffort[];
   models: ProviderModel[];
   /**
    * An OpenAI-compatible server the user runs: they enter its URL, the API key is optional, and
@@ -26,6 +30,14 @@ export interface ProviderConfig {
    */
   selfHosted?: boolean;
 }
+
+const EFFORTS: ReasoningEffort[] = ["low", "medium", "high"];
+
+/**
+ * Claude, Grok 4.6, Gemini 3.1 Pro and DeepSeek think at high effort unless told otherwise, which
+ * can outlast the request timeout; medium is OpenAI's own default and enough for a quiz.
+ */
+export const DEFAULT_EFFORT: ReasoningEffort = "medium";
 
 export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
   gemini: {
@@ -36,6 +48,7 @@ export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
     defaultModel: "gemini-3.7-flash",
     supportsStrictSchema: true,
     readsImages: true,
+    efforts: EFFORTS,
     models: [
       { id: "gemini-3.7-flash", label: "Gemini 3.7 Flash", hint: "Balanced" },
       { id: "gemini-3.6-flash", label: "Gemini 3.6 Flash", hint: "Previous" },
@@ -52,6 +65,7 @@ export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
     defaultModel: "gpt-5.6-terra",
     supportsStrictSchema: true,
     readsImages: true,
+    efforts: EFFORTS,
     models: [
       { id: "gpt-5.6-terra", label: "GPT-5.6 Terra", hint: "Balanced" },
       { id: "gpt-5.6-luna", label: "GPT-5.6 Luna", hint: "Economy" },
@@ -67,9 +81,11 @@ export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
     defaultModel: "claude-sonnet-5",
     supportsStrictSchema: true,
     readsImages: true,
+    efforts: EFFORTS,
     models: [
       { id: "claude-sonnet-5", label: "Claude Sonnet 5", hint: "Balanced" },
-      { id: "claude-haiku-4-5", label: "Claude Haiku 4.5", hint: "Fast" },
+      // Haiku 4.5 refuses the effort parameter and thinks only when asked to.
+      { id: "claude-haiku-4-5", label: "Claude Haiku 4.5", hint: "Fast", takesEffort: false },
       { id: "claude-opus-5", label: "Claude Opus 5", hint: "Quality" },
       { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6", hint: "Previous" },
     ],
@@ -82,6 +98,7 @@ export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
     defaultModel: "grok-4.6",
     supportsStrictSchema: true,
     readsImages: true,
+    efforts: EFFORTS,
     models: [
       { id: "grok-4.6", label: "Grok 4.6", hint: "Balanced" },
       { id: "grok-4.3", label: "Grok 4.3", hint: "Previous" },
@@ -96,6 +113,7 @@ export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
     supportsStrictSchema: false,
     // DeepSeek's chat API takes text only.
     readsImages: false,
+    efforts: EFFORTS,
     models: [
       { id: "deepseek-v4-flash", label: "DeepSeek V4 Flash", hint: "Balanced" },
       { id: "deepseek-v4-pro", label: "DeepSeek V4 Pro", hint: "Quality" },
@@ -110,10 +128,17 @@ export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
     supportsStrictSchema: false,
     // None of the listed Groq models reads images.
     readsImages: false,
+    efforts: EFFORTS,
     models: [
       { id: "openai/gpt-oss-120b", label: "GPT-OSS 120B", hint: "Balanced" },
       { id: "openai/gpt-oss-20b", label: "GPT-OSS 20B", hint: "Fast" },
-      { id: "llama-3.3-70b-versatile", label: "Llama 3.3 70B", hint: "Enterprise" },
+      // Llama does not reason, and Groq refuses an effort for it.
+      {
+        id: "llama-3.3-70b-versatile",
+        label: "Llama 3.3 70B",
+        hint: "Enterprise",
+        takesEffort: false,
+      },
     ],
   },
   openrouter: {
@@ -124,6 +149,7 @@ export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
     defaultModel: "~openai/gpt-latest",
     supportsStrictSchema: true,
     readsImages: true,
+    efforts: EFFORTS,
     models: [
       { id: "~openai/gpt-latest", label: "OpenAI GPT Latest", hint: "Balanced" },
       { id: "~anthropic/claude-sonnet-latest", label: "Claude Sonnet Latest", hint: "Quality" },
@@ -138,6 +164,9 @@ export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
     defaultModel: "",
     supportsStrictSchema: true,
     readsImages: true,
+    // vLLM hands the effort to the model's chat template. Hybrid models such as Qwen3 only switch
+    // thinking on or off, so "none" is the one level that makes them answer sooner.
+    efforts: ["none", ...EFFORTS],
     models: [],
     selfHosted: true,
   },
@@ -159,4 +188,14 @@ export function modelLabel(providerId: ProviderId, modelId: string): string {
   return (
     provider.models.find((model) => model.id === modelId)?.label || modelId || provider.defaultModel
   );
+}
+
+/** The saved effort when the provider offers it, otherwise the default. */
+export function effortFor(providerId: ProviderId, saved: unknown): ReasoningEffort {
+  return PROVIDERS[providerId].efforts.find((effort) => effort === saved) ?? DEFAULT_EFFORT;
+}
+
+/** Whether requests to the model carry a reasoning effort; models outside the presets do. */
+export function takesEffort(providerId: ProviderId, modelId: string): boolean {
+  return PROVIDERS[providerId].models.find((model) => model.id === modelId)?.takesEffort !== false;
 }

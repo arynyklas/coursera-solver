@@ -7,7 +7,7 @@ import {
   buildVerificationRequest,
 } from "@/ai/requests";
 import { ANSWER_SCHEMA } from "@/ai/schemas";
-import type { ProviderId } from "@/shared/types";
+import type { ProviderId, ReasoningEffort } from "@/shared/types";
 
 const apiKey = "test-secret";
 const prompt = "Return JSON.";
@@ -145,6 +145,62 @@ describe("buildGenerationRequest", () => {
     expect(body("anthropic").messages).toEqual([{ role: "user", content: prompt }]);
     // DeepSeek accepts only string content.
     expect(body("deepseek").messages).toEqual([{ role: "user", content: prompt }]);
+  });
+
+  it("sends the reasoning effort in each provider's own field", () => {
+    const body = (providerId: ProviderId, model: string, effort: ReasoningEffort = "low") =>
+      JSON.parse(
+        String(
+          buildGenerationRequest(providerId, apiKey, model, prompt, { effort, baseUrl: serverUrl })
+            .options.body,
+        ),
+      );
+
+    // Gemini 3 thinks by level, at the default temperature Google asks for with thinking.
+    expect(body("gemini", "gemini-3.7-flash").generationConfig).toEqual({
+      responseMimeType: "application/json",
+      responseSchema: ANSWER_SCHEMA,
+      thinkingConfig: { thinkingLevel: "low" },
+    });
+    // Gemini 2.5 thinks by token budget, up to 24576 tokens on 2.5 Flash.
+    expect(body("gemini", "gemini-2.5-flash", "high").generationConfig).toEqual({
+      temperature: 0.1,
+      responseMimeType: "application/json",
+      responseSchema: ANSWER_SCHEMA,
+      thinkingConfig: { thinkingBudget: 24576 },
+    });
+    expect(body("openai", "gpt-5.6-terra").reasoning).toEqual({ effort: "low" });
+    expect(body("anthropic", "claude-sonnet-5").output_config).toEqual({
+      format: { type: "json_schema", schema: ANSWER_SCHEMA },
+      effort: "low",
+    });
+    expect(body("openrouter", "~openai/gpt-latest").reasoning).toEqual({ effort: "low" });
+    for (const [providerId, model] of [
+      ["xai", "grok-4.6"],
+      ["deepseek", "deepseek-v4-flash"],
+      ["groq", "openai/gpt-oss-120b"],
+      ["vllm", "Qwen/Qwen3-8B"],
+    ] as const) {
+      expect(body(providerId, model).reasoning_effort).toBe("low");
+    }
+    // vLLM hands "none" to the model's chat template, which turns thinking off.
+    expect(body("vllm", "Qwen/Qwen3-8B", "none").reasoning_effort).toBe("none");
+  });
+
+  it("sends no effort to a model that takes none, nor when the request has none", () => {
+    const body = (providerId: ProviderId, model: string, effort?: ReasoningEffort) =>
+      JSON.parse(
+        String(buildGenerationRequest(providerId, apiKey, model, prompt, { effort }).options.body),
+      );
+
+    expect(body("anthropic", "claude-haiku-4-5", "low").output_config).toEqual({
+      format: { type: "json_schema", schema: ANSWER_SCHEMA },
+    });
+    expect(body("groq", "llama-3.3-70b-versatile", "low")).not.toHaveProperty("reasoning_effort");
+    expect(body("openai", "gpt-5.6-terra")).not.toHaveProperty("reasoning");
+    expect(body("gemini", "gemini-3.7-flash").generationConfig).not.toHaveProperty(
+      "thinkingConfig",
+    );
   });
 });
 

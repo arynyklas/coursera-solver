@@ -8,6 +8,9 @@ export type ProviderId =
   | "openrouter"
   | "vllm";
 
+/** How long a reasoning model thinks before it answers. `none` turns thinking off. */
+export type ReasoningEffort = "none" | "low" | "medium" | "high";
+
 export type SupportedQuestionType =
   | "single_answer"
   | "multiple_answer"

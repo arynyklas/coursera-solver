@@ -1,10 +1,12 @@
 import { storage } from "#imports";
 import { isProviderId, PROVIDERS } from "@/ai/providers";
-import type { ProviderId } from "./types";
+import type { ProviderId, ReasoningEffort } from "./types";
 
 export interface ProviderSettings {
   apiKey: string;
   model: string;
+  /** Read through `effortFor`: settings saved before efforts existed have none. */
+  effort?: ReasoningEffort;
   verifiedAt?: number;
   /** The normalized server URL of a self-hosted provider. */
   baseUrl?: string;
@@ -20,6 +22,7 @@ export interface ServerDraft {
   baseUrl: string;
   apiKey: string;
   model: string;
+  effort: ReasoningEffort;
 }
 
 export const activeProviderItem = storage.defineItem<string>("local:aiProvider", {

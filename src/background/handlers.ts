@@ -2,7 +2,7 @@ import { callProvider, requestJSON } from "@/ai/client";
 import { providerErrorMessage } from "@/ai/errors";
 import { loadQuestionImages, unattachedImages } from "@/ai/images";
 import { createDialoguePrompt, createQuizPrompt } from "@/ai/prompts";
-import { isProviderId, PROVIDERS } from "@/ai/providers";
+import { effortFor, isProviderId, PROVIDERS } from "@/ai/providers";
 import { buildModelListRequest, buildVerificationRequest } from "@/ai/requests";
 import {
   parseAndValidateAnswers,
@@ -18,7 +18,7 @@ import {
   isProviderReady,
   migrateLegacyGeminiKey,
 } from "@/shared/storage";
-import type { ProviderId } from "@/shared/types";
+import type { ProviderId, ReasoningEffort } from "@/shared/types";
 
 export interface BackgroundDeps {
   fetch?: typeof fetch;
@@ -31,6 +31,7 @@ export async function loadAIConfiguration(): Promise<{
   apiKey: string;
   model: string;
   baseUrl: string;
+  effort: ReasoningEffort;
   ready: boolean;
 }> {
   await migrateLegacyGeminiKey();
@@ -43,6 +44,7 @@ export async function loadAIConfiguration(): Promise<{
     apiKey: settings?.apiKey || "",
     model: settings?.model || config.defaultModel,
     baseUrl: settings?.baseUrl || "",
+    effort: effortFor(provider, settings?.effort),
     ready: isProviderReady(provider, settings),
   };
 }
@@ -62,7 +64,7 @@ export function createBackgroundHandlers(deps: BackgroundDeps = {}): Handlers<Ba
       if (!Array.isArray(questions) || questions.length === 0) {
         throw new Error("No quiz questions were provided to the AI service.");
       }
-      const { provider, label, apiKey, model, baseUrl } = await loadConfiguredProvider();
+      const { provider, label, apiKey, model, baseUrl, effort } = await loadConfiguredProvider();
       const rawText = await withKeepAlive(async () => {
         const { attachments, notes } = PROVIDERS[provider].readsImages
           ? await loadQuestionImages(questions, deps.fetch ?? fetch)
@@ -81,6 +83,7 @@ export function createBackgroundHandlers(deps: BackgroundDeps = {}): Handlers<Ba
             apiKey,
             model,
             baseUrl,
+            effort,
             prompt: createQuizPrompt(questions, notes),
             ...(attachments.length > 0
               ? {
@@ -103,7 +106,7 @@ export function createBackgroundHandlers(deps: BackgroundDeps = {}): Handlers<Ba
       if (!currentQuestion || !String(currentQuestion).trim()) {
         throw new Error("No active Coursera dialogue question was found.");
       }
-      const { provider, apiKey, model, baseUrl } = await loadConfiguredProvider();
+      const { provider, apiKey, model, baseUrl, effort } = await loadConfiguredProvider();
       const rawText = await withKeepAlive(() =>
         callProvider(
           {
@@ -111,6 +114,7 @@ export function createBackgroundHandlers(deps: BackgroundDeps = {}): Handlers<Ba
             apiKey,
             model,
             baseUrl,
+            effort,
             prompt: createDialoguePrompt(messages, currentQuestion),
             schema: DIALOGUE_SCHEMA,
             schemaName: "dialogue_reply",

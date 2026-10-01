@@ -161,6 +161,73 @@ describe("callProvider", () => {
     });
   });
 
+  describe("with a reasoning effort", () => {
+    it("retries once without the effort when the model takes none, keeping the schema", async () => {
+      const fetchStub = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              error: {
+                message:
+                  "Unsupported parameter: 'reasoning.effort' is not supported with this model.",
+                param: "reasoning.effort",
+                code: "unsupported_parameter",
+              },
+            }),
+            { status: 400 },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ output_text: '{"answers":[]}' }), { status: 200 }),
+        );
+
+      await expect(
+        callProvider({ ...call, model: "gpt-4.1", effort: "low" }, { fetch: fetchStub }),
+      ).resolves.toBe('{"answers":[]}');
+
+      expect(fetchStub).toHaveBeenCalledTimes(2);
+      const [first, retry] = fetchStub.mock.calls.map(([, init]) => JSON.parse(String(init?.body)));
+      expect(first.reasoning).toEqual({ effort: "low" });
+      expect(retry).not.toHaveProperty("reasoning");
+      expect(retry.text.format.type).toBe("json_schema");
+    });
+
+    it("retries without the effort when OpenRouter finds no endpoint for the requested parameters", async () => {
+      const fetchStub = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              error: { message: "No endpoints found that can handle the requested parameters." },
+            }),
+            { status: 404 },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ choices: [{ message: { content: '{"answers":[]}' } }] }), {
+            status: 200,
+          }),
+        );
+
+      await expect(
+        callProvider(
+          {
+            ...call,
+            provider: "openrouter",
+            model: "meta-llama/llama-3.3-70b-instruct",
+            effort: "medium",
+          },
+          { fetch: fetchStub },
+        ),
+      ).resolves.toBe('{"answers":[]}');
+
+      const retry = JSON.parse(String(fetchStub.mock.calls[1]?.[1]?.body));
+      expect(retry).not.toHaveProperty("reasoning");
+      expect(retry.response_format.type).toBe("json_schema");
+    });
+  });
+
   describe("when a self-hosted server cannot be reached", () => {
     const vllmCall = {
       ...call,

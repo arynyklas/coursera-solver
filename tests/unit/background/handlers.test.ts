@@ -85,6 +85,27 @@ describe("background handlers", () => {
     );
   });
 
+  it("asks with the saved reasoning effort, or medium when none the provider offers is saved", async () => {
+    const answers = JSON.stringify({ answers: [{ questionNumber: 1, correctOptions: ["A"] }] });
+    const fetchStub = vi.fn<typeof fetch>(
+      async () => new Response(JSON.stringify({ output_text: answers }), { status: 200 }),
+    );
+    const handlers = createBackgroundHandlers({ fetch: fetchStub });
+    const solveWith = async (effort?: string) => {
+      await browser.storage.local.set({
+        aiProvider: "openai",
+        aiProviderSettings: { openai: { apiKey: "k", model: "gpt-5.6-terra", effort } },
+      });
+      await handlers.solveQuestions({ questions }, sender);
+      return JSON.parse(String(fetchStub.mock.calls.at(-1)?.[1]?.body)).reasoning;
+    };
+
+    await expect(solveWith("low")).resolves.toEqual({ effort: "low" });
+    await expect(solveWith(undefined)).resolves.toEqual({ effort: "medium" });
+    // Only vLLM offers to turn thinking off.
+    await expect(solveWith("none")).resolves.toEqual({ effort: "medium" });
+  });
+
   describe("quiz images", () => {
     const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 7]);
     const imageUrl = "https://d3c33hcgiwev3.cloudfront.net/imageAssetProxy.v1/diagram.png";

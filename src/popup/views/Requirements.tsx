@@ -1,4 +1,11 @@
-import { ChevronRight, Lock } from "lucide-react";
+import {
+  ChevronRight,
+  Circle,
+  CircleCheck,
+  CircleDashed,
+  Lock,
+  type LucideIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { browser } from "wxt/browser";
 import { cn } from "@/lib/utils";
@@ -17,9 +24,15 @@ import {
 } from "@/popup/lib/format";
 import type { Navigate } from "@/popup/navigation";
 import { sendToTab } from "@/shared/messaging";
-import type { CourseRequirementsResult, Requirement } from "@/shared/types";
+import type { CourseRequirementsResult, Requirement, RequirementStatus } from "@/shared/types";
 
 const OPEN_FAILED = "Coursera could not open that activity. Refresh the page and try again.";
+
+const STATUS: Record<RequirementStatus, { icon: LucideIcon; label: string; className: string }> = {
+  completed: { icon: CircleCheck, label: "Completed", className: "text-success" },
+  started: { icon: CircleDashed, label: "In progress", className: "text-muted-foreground" },
+  notStarted: { icon: Circle, label: "Not started", className: "text-muted-foreground" },
+};
 
 export function Requirements({
   context,
@@ -85,12 +98,22 @@ function RequirementList({
     else groups.set(moduleName, [requirement]);
   }
 
+  const progressNote =
+    summary.completedCount === null
+      ? "Your Coursera progress could not be read, so completion is not shown. Refresh the Coursera page to try again."
+      : "Completion follows your Coursera progress. Grades are not included.";
+
   return (
     <>
       <div className="flex flex-wrap items-center gap-1.5">
         <h2 className="mr-1 text-[13px] font-semibold">
           {plural(requirements.length, "graded activity", "graded activities")}
         </h2>
+        {summary.completedCount === null ? null : (
+          <ToneBadge
+            tone={summary.completedCount === requirements.length ? "success" : "outline"}
+          >{`${summary.completedCount} of ${requirements.length} completed`}</ToneBadge>
+        )}
         {summary.confirmed ? (
           <ToneBadge tone="success">Confirmed</ToneBadge>
         ) : (
@@ -103,8 +126,8 @@ function RequirementList({
       </div>
       <Note tone="muted">
         {summary.unresolvedCount || summary.unmappedCount
-          ? "Some course requirements could not be fully linked. Completion status and current grade are not included."
-          : "Coursera’s materials data does not include your completion status or current grade."}
+          ? `Some course requirements could not be fully linked. ${progressNote}`
+          : progressNote}
       </Note>
       {openFailed ? <Note tone="error">{OPEN_FAILED}</Note> : null}
       <div className="shrink-0 overflow-hidden rounded-lg border">
@@ -137,6 +160,10 @@ function RequirementRow({
     .join(" · ");
   const weight = formatWeightPercent(requirement.weightPercent);
   const passCount = requirement.groupRequirement?.requiredPassedCount ?? 0;
+  const status = requirement.status ? STATUS[requirement.status] : null;
+  // A completed activity reads as completed even when it is locked now.
+  const showLock = requirement.locked && requirement.status !== "completed";
+  const StatusIcon = showLock ? Lock : status?.icon;
 
   return (
     <button
@@ -150,9 +177,13 @@ function RequirementRow({
         requirement.locked && "opacity-60",
       )}
     >
-      {requirement.locked ? (
-        <Lock className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+      {StatusIcon ? (
+        <StatusIcon
+          className={cn("size-4 shrink-0", showLock ? "text-muted-foreground" : status?.className)}
+          aria-hidden
+        />
       ) : null}
+      {status ? <span className="sr-only">{status.label}</span> : null}
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[12.5px] font-medium">
           {requirement.name || "Graded activity"}

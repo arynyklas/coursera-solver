@@ -101,16 +101,20 @@ export function widgetSessionId(body: unknown): string {
   return typeof element.sessionId === "string" ? element.sessionId : "";
 }
 
-/** Ids of the items the learner has completed, from an `onDemandCoursesProgress.v1` response. */
-export function completedItemIds(body: unknown): Set<string> {
+/**
+ * Each item's `progressState` ("Completed", "Started") by item id, from an
+ * `onDemandCoursesProgress.v1` response. A record without items means nothing was started yet;
+ * a response without the learner's record gives `null`.
+ */
+export function itemProgressStates(body: unknown): Map<string, string> | null {
   const element = firstElement(body);
-  if (!element || !("items" in element)) return new Set();
-  const { items } = element;
-  if (typeof items !== "object" || items === null) return new Set();
-  const completed = new Set<string>();
+  if (!element) return null;
+  const states = new Map<string, string>();
+  const items = "items" in element ? element.items : undefined;
+  if (typeof items !== "object" || items === null) return states;
   for (const [id, item] of Object.entries(items)) {
     if (typeof item !== "object" || item === null || !("progressState" in item)) continue;
-    if (item.progressState === "Completed") completed.add(id);
+    if (typeof item.progressState === "string") states.set(id, item.progressState);
   }
-  return completed;
+  return states;
 }

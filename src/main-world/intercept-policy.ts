@@ -44,7 +44,8 @@ export const MATERIAL_COLLECTION_FIELDS: Readonly<Record<string, readonly string
 export type HeaderEntry = [unknown, unknown];
 
 export interface MinimizedMaterials {
-  elements: Array<{ moduleIds: string[] }>;
+  /** `id` is Coursera's internal course id, which keys the learner's progress. */
+  elements: Array<{ id?: string; moduleIds: string[] }>;
   linked: Record<string, Array<Record<string, unknown>>>;
 }
 
@@ -155,8 +156,12 @@ export function minimizeCourseMaterials(responseBody: unknown): MinimizedMateria
 
   const elements = Array.isArray(body?.elements)
     ? body.elements.map((entry) => {
-        const moduleIds = asIndexable(entry)?.moduleIds;
-        return { moduleIds: Array.isArray(moduleIds) ? [...moduleIds] : [] };
+        const element = asIndexable(entry);
+        const moduleIds = element?.moduleIds;
+        return {
+          ...(typeof element?.id === "string" ? { id: element.id } : {}),
+          moduleIds: Array.isArray(moduleIds) ? [...moduleIds] : [],
+        };
       })
     : [];
 

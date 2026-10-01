@@ -87,6 +87,12 @@ export interface GroupRequirement {
   choiceCount: number;
 }
 
+/**
+ * The learner's progress on a requirement, as Coursera records it per item: `completed` once
+ * Coursera marks the item completed, `started` once it was opened or attempted.
+ */
+export type RequirementStatus = "completed" | "started" | "notStarted";
+
 export interface Requirement {
   id: string;
   name: string;
@@ -102,6 +108,8 @@ export interface Requirement {
   timeCommitment: number | null;
   source: "confirmed" | "detected";
   link: string | null;
+  /** `null` when the learner's progress could not be read. */
+  status: RequirementStatus | null;
 }
 
 export interface RequirementsSummary {
@@ -112,6 +120,8 @@ export interface RequirementsSummary {
   lockedCount: number;
   unmappedCount: number;
   unresolvedCount: number;
+  /** `null` when the learner's progress could not be read. */
+  completedCount: number | null;
 }
 
 export interface CourseRequirementsResult {

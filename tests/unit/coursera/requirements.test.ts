@@ -64,6 +64,36 @@ describe("course requirements", () => {
     expect(exam?.link).toMatch(/\/learn\/sample-course\/exam\/exam-1\/module-assessment$/);
   });
 
+  it("reports the learner's progress on each requirement", () => {
+    const result = normalizeCourseRequirements(
+      fixture,
+      "sample-course",
+      new Map([
+        ["quiz-1", "Completed"],
+        ["exam-1", "Started"],
+      ]),
+    );
+    expect(result.requirements.map(({ id, status }) => [id, status])).toEqual([
+      ["quiz-1", "completed"],
+      ["exam-1", "started"],
+    ]);
+    expect(result.summary.completedCount).toBe(1);
+
+    const untouched = normalizeCourseRequirements(fixture, "sample-course", new Map());
+    expect(untouched.requirements.map(({ status }) => status)).toEqual([
+      "notStarted",
+      "notStarted",
+    ]);
+    expect(untouched.summary.completedCount).toBe(0);
+  });
+
+  it("leaves the status unknown when the learner's progress was not read", () => {
+    const result = normalizeCourseRequirements(fixture, "sample-course");
+
+    expect(result.requirements.map(({ status }) => status)).toEqual([null, null]);
+    expect(result.summary.completedCount).toBeNull();
+  });
+
   it("does not invent percentages from partial grading-weight metadata", () => {
     const partialFixture = structuredClone(fixture);
     const [, examPassable] =

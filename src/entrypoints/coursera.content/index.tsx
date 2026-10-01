@@ -60,6 +60,7 @@ export default defineContentScript({
         doc: document,
         location,
         state,
+        session,
         monaco,
         solve,
         completion,

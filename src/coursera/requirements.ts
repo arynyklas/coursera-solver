@@ -3,6 +3,7 @@ import type {
   CourseRequirementsResult,
   GroupRequirement,
   Requirement,
+  RequirementStatus,
 } from "@/shared/types";
 
 // Shapes the linked collections are read through; Coursera payloads are not validated.
@@ -95,9 +96,20 @@ export function itemIdFromPassable(passableId: string | null | undefined): strin
   return parts.at(-1) || "";
 }
 
+/** A requirement's status from Coursera's `progressState` for its item. */
+function requirementStatus(progressState: string | undefined): RequirementStatus {
+  if (progressState === "Completed") return "completed";
+  return progressState === "Started" ? "started" : "notStarted";
+}
+
+/**
+ * `progress` holds the learner's `progressState` per item id (see `itemProgressStates`); without
+ * it every status is `null`.
+ */
 export function normalizeCourseRequirements(
   materials: CourseMaterials,
   courseSlug: string,
+  progress: ReadonlyMap<string, string> | null = null,
 ): CourseRequirementsResult {
   const items = linkedCourseCollection<CourseItem>(materials, "onDemandCourseMaterialItems.v2");
   const modules = linkedCourseCollection<CourseModule>(
@@ -225,6 +237,7 @@ export function normalizeCourseRequirements(
         : null,
       source: passable || group ? "confirmed" : "detected",
       link,
+      status: progress ? requirementStatus(progress.get(id)) : null,
       moduleOrder: moduleOrder.get(item.moduleId) ?? Number.MAX_SAFE_INTEGER,
       lessonOrder: lessonOrder.get(item.lessonId) ?? Number.MAX_SAFE_INTEGER,
       itemOrder: itemOrder.get(id) ?? Number.MAX_SAFE_INTEGER,
@@ -272,6 +285,9 @@ export function normalizeCourseRequirements(
       lockedCount: requirements.filter((requirement) => requirement.locked).length,
       unmappedCount: requirements.filter((requirement) => !requirement.link).length,
       unresolvedCount,
+      completedCount: progress
+        ? requirements.filter((requirement) => requirement.status === "completed").length
+        : null,
     },
   };
 }

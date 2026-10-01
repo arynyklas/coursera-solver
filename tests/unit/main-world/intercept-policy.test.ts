@@ -45,7 +45,7 @@ describe("intercept policy", () => {
 
   it("course-material responses retain only fields consumed by the read runtime", () => {
     const materials = {
-      elements: [{ moduleIds: ["module-1"], privateRootField: "hidden" }],
+      elements: [{ id: "course-1", moduleIds: ["module-1"], privateRootField: "hidden" }],
       linked: {
         "onDemandCourseMaterialModules.v1": [
           { id: "module-1", name: "Module", lessonIds: ["lesson-1"], privateModuleField: "hidden" },
@@ -67,7 +67,7 @@ describe("intercept policy", () => {
     };
 
     expect(minimizeCourseMaterials(materials)).toEqual({
-      elements: [{ moduleIds: ["module-1"] }],
+      elements: [{ id: "course-1", moduleIds: ["module-1"] }],
       linked: {
         "onDemandCourseMaterialModules.v1": [
           { id: "module-1", name: "Module", lessonIds: ["lesson-1"] },

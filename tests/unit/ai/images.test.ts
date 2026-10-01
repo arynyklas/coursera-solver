@@ -6,6 +6,8 @@ const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 
 const JPEG = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 4, 5]);
 const WEBP = Uint8Array.from([0x52, 0x49, 0x46, 0x46, 9, 0, 0, 0, 0x57, 0x45, 0x42, 0x50, 6]);
 const SVG = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"></svg>');
+/** Where Coursera serves quiz images from. */
+const CDN = "https://d3c33hcgiwev3.cloudfront.net/imageAssetProxy.v1";
 
 function base64(bytes: Uint8Array): string {
   return Buffer.from(bytes).toString("base64");
@@ -35,16 +37,13 @@ function serve(files: Record<string, Uint8Array<ArrayBuffer>>) {
 describe("loadQuestionImages", () => {
   it("attaches each image as base64 under its question's label, in a format every provider reads", async () => {
     const fetch = serve({
-      "https://cdn.example/a.png": PNG,
-      "https://cdn.example/b.jpg": JPEG,
-      "https://cdn.example/c.webp": WEBP,
+      [`${CDN}/a.png`]: PNG,
+      [`${CDN}/b.jpg`]: JPEG,
+      [`${CDN}/c.webp`]: WEBP,
     });
 
     const { attachments, notes } = await loadQuestionImages(
-      [
-        question(2, ["https://cdn.example/a.png", "https://cdn.example/b.jpg"]),
-        question(5, ["https://cdn.example/c.webp"]),
-      ],
+      [question(2, [`${CDN}/a.png`, `${CDN}/b.jpg`]), question(5, [`${CDN}/c.webp`])],
       fetch,
     );
 
@@ -56,7 +55,7 @@ describe("loadQuestionImages", () => {
     expect(notes).toEqual(new Map());
   });
 
-  it("notes every image it cannot attach and why, and never fetches a plain http URL", async () => {
+  it("notes every image it cannot attach and why", async () => {
     const fetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.endsWith("offline.png")) throw new TypeError("Failed to fetch");
@@ -68,11 +67,10 @@ describe("loadQuestionImages", () => {
     const { attachments, notes } = await loadQuestionImages(
       [
         question(1, [
-          "http://cdn.example/plain.png",
-          "https://cdn.example/offline.png",
-          "https://cdn.example/missing.png",
-          "https://cdn.example/drawing.svg",
-          "https://cdn.example/huge.png",
+          `${CDN}/offline.png`,
+          `${CDN}/missing.png`,
+          `${CDN}/drawing.svg`,
+          `${CDN}/huge.png`,
         ]),
       ],
       fetch,
@@ -84,25 +82,62 @@ describe("loadQuestionImages", () => {
       new Map([
         ["Question 1 image 1", "could not be loaded"],
         ["Question 1 image 2", "could not be loaded"],
-        ["Question 1 image 3", "could not be loaded"],
-        ["Question 1 image 4", "is not a PNG, JPEG or WebP image"],
-        ["Question 1 image 5", "is too large to send"],
+        ["Question 1 image 3", "is not a PNG, JPEG or WebP image"],
+        ["Question 1 image 4", "is too large to send"],
       ]),
     );
-    expect(fetch.mock.calls.map(([input]) => String(input))).not.toContain(
-      "http://cdn.example/plain.png",
+  });
+
+  it("requests only images on Coursera's hosts or inline in the page, and without cookies", async () => {
+    const fetch = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(PNG),
     );
+    const allowed = [
+      `${CDN}/a.png`,
+      "https://www.coursera.org/static/b.png",
+      `data:image/png;base64,${base64(PNG)}`,
+    ];
+
+    const { attachments, notes } = await loadQuestionImages(
+      [
+        question(1, [
+          ...allowed,
+          "http://d3c33hcgiwev3.cloudfront.net/plain.png",
+          "https://localhost/c.png",
+          "https://192.168.1.10/d.png",
+          "https://gpu.lan:8000/e.png",
+          "https://d3c33hcgiwev3.cloudfront.net.attacker.example/f.png",
+        ]),
+      ],
+      fetch,
+    );
+
+    expect(attachments.map(({ label }) => label)).toEqual([
+      "Question 1 image 1",
+      "Question 1 image 2",
+      "Question 1 image 3",
+    ]);
+    expect(notes).toEqual(
+      new Map([
+        ["Question 1 image 4", "could not be loaded"],
+        ["Question 1 image 5", "could not be loaded"],
+        ["Question 1 image 6", "could not be loaded"],
+        ["Question 1 image 7", "could not be loaded"],
+        ["Question 1 image 8", "could not be loaded"],
+      ]),
+    );
+    expect(fetch.mock.calls).toEqual(allowed.map((url) => [url, { credentials: "omit" }]));
   });
 
   it("stops at the image count and total size limits of one request", async () => {
     const fetch = serve({
-      "https://cdn.example/1.png": PNG,
-      "https://cdn.example/2.png": PNG,
-      "https://cdn.example/3.png": PNG,
+      [`${CDN}/1.png`]: PNG,
+      [`${CDN}/2.png`]: PNG,
+      [`${CDN}/3.png`]: PNG,
     });
 
     const byCount = await loadQuestionImages(
-      [question(1, ["https://cdn.example/1.png", "https://cdn.example/2.png"])],
+      [question(1, [`${CDN}/1.png`, `${CDN}/2.png`])],
       fetch,
       { ...IMAGE_LIMITS, count: 1 },
     );
@@ -112,7 +147,7 @@ describe("loadQuestionImages", () => {
     );
 
     const bySize = await loadQuestionImages(
-      [question(1, ["https://cdn.example/1.png", "https://cdn.example/2.png"])],
+      [question(1, [`${CDN}/1.png`, `${CDN}/2.png`])],
       fetch,
       { ...IMAGE_LIMITS, totalBytes: PNG.length + 1 },
     );

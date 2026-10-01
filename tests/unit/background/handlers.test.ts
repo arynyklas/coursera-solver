@@ -87,6 +87,7 @@ describe("background handlers", () => {
 
   describe("quiz images", () => {
     const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 7]);
+    const imageUrl = "https://d3c33hcgiwev3.cloudfront.net/imageAssetProxy.v1/diagram.png";
     const withImage: Question[] = [
       {
         ...questions[0],
@@ -94,7 +95,7 @@ describe("background handlers", () => {
         type: "single_answer",
         question: "Pick",
         options: ["A", "B"],
-        images: [{ url: "https://cdn.example/diagram.png", alt: "Lifecycle diagram" }],
+        images: [{ url: imageUrl, alt: "Lifecycle diagram" }],
       },
     ];
 
@@ -104,7 +105,7 @@ describe("background handlers", () => {
         aiProviderSettings: { gemini: { apiKey: "k", model: "gemini-3.7-flash", verifiedAt: 1 } },
       });
       const fetchStub = vi.fn<typeof fetch>(async (input) =>
-        String(input) === "https://cdn.example/diagram.png"
+        String(input) === imageUrl
           ? new Response(PNG)
           : geminiResponse(
               JSON.stringify({ answers: [{ questionNumber: 1, correctOptions: ["B"] }] }),
@@ -123,7 +124,7 @@ describe("background handlers", () => {
       // The prompt names the image instead of its signed URL.
       expect(promptPart.text).toContain('"label": "Question 1 image 1"');
       expect(promptPart.text).toContain('"alt": "Lifecycle diagram"');
-      expect(promptPart.text).not.toContain("cdn.example");
+      expect(promptPart.text).not.toContain("cloudfront.net");
       expect(imageParts).toEqual([
         { text: "Question 1 image 1" },
         { inline_data: { mime_type: "image/png", data: Buffer.from(PNG).toString("base64") } },

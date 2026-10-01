@@ -29,11 +29,25 @@ export function unattachedImages(questions: Question[], reason: string): Map<str
   );
 }
 
-async function readImage(fetch: typeof globalThis.fetch, url: string): Promise<Uint8Array | null> {
-  // Pages can hold any URL; only these two kinds are ever requested.
-  if (!url.startsWith("https:") && !url.startsWith("data:image/")) return null;
+/**
+ * Coursera serves quiz images from its own hosts and its CloudFront CDN. The page picks the URLs
+ * and the extension can read what it fetches, so nothing else is requested: not the user's own
+ * machine or network, nor a server the extension was given access to. No cookies go along either.
+ */
+function isCourseraImage(url: string): boolean {
+  if (url.startsWith("data:image/")) return true;
   try {
-    const response = await fetch(url);
+    const { protocol, hostname } = new URL(url);
+    return protocol === "https:" && /(^|\.)coursera\.org$|\.cloudfront\.net$/.test(hostname);
+  } catch {
+    return false;
+  }
+}
+
+async function readImage(fetch: typeof globalThis.fetch, url: string): Promise<Uint8Array | null> {
+  if (!isCourseraImage(url)) return null;
+  try {
+    const response = await fetch(url, { credentials: "omit" });
     return response.ok ? new Uint8Array(await response.arrayBuffer()) : null;
   } catch {
     return null;

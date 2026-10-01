@@ -117,11 +117,19 @@ export async function callProvider(
 
   let result = await send();
   // A strict schema the model cannot follow, then images it cannot read, are each dropped once.
+  // An error that names images drops them first, so the schema stays.
   while (!result.ok) {
-    if (structured && shouldRetryWithoutSchema(providerId, result.status, result.data)) {
+    // Providers word "this model takes no images" differently, so any request error counts.
+    const imagesRefused = images.length > 0 && [400, 404, 413, 415, 422].includes(result.status);
+    const namesImages =
+      imagesRefused && /image|vision|multimodal/i.test(JSON.stringify(result.data));
+    if (
+      !namesImages &&
+      structured &&
+      shouldRetryWithoutSchema(providerId, result.status, result.data)
+    ) {
       structured = false;
-    } else if (images.length > 0 && [400, 404, 413, 415, 422].includes(result.status)) {
-      // Providers word "this model takes no images" differently, so any request error counts.
+    } else if (imagesRefused) {
       images = [];
       prompt = call.images?.promptWithoutImages ?? call.prompt;
     } else {

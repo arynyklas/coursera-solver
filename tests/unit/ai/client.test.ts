@@ -114,6 +114,39 @@ describe("callProvider", () => {
       expect(fetchStub).toHaveBeenCalledTimes(2);
     });
 
+    it("drops the images, not the schema, when a strict-schema provider says it cannot take them", async () => {
+      const fetchStub = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({ error: { message: "Unsupported parameter: image_url content" } }),
+            { status: 400 },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ choices: [{ message: { content: '{"answers":[]}' } }] }), {
+            status: 200,
+          }),
+        );
+
+      await expect(
+        callProvider(
+          {
+            ...call,
+            provider: "openrouter",
+            model: "~openai/gpt-latest",
+            images: { attachments: [image], promptWithoutImages: "Text only." },
+          },
+          { fetch: fetchStub },
+        ),
+      ).resolves.toBe('{"answers":[]}');
+
+      expect(fetchStub).toHaveBeenCalledTimes(2);
+      const retry = JSON.parse(String(fetchStub.mock.calls[1]?.[1]?.body));
+      expect(retry.messages).toEqual([{ role: "user", content: "Text only." }]);
+      expect(retry.response_format.type).toBe("json_schema");
+    });
+
     it("does not retry a failed request that carried no images", async () => {
       const fetchStub = vi
         .fn<typeof fetch>()

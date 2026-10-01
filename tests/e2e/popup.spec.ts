@@ -1,8 +1,9 @@
+import { readFileSync } from "node:fs";
 import type { Page, TestInfo } from "@playwright/test";
 import type { Browser } from "wxt/browser";
-import { expect, test } from "./extension";
+import { expect, routeCourseraPage, tabIdOf, test, waitForContentScript } from "./extension";
 
-// The extension service worker's global; `serviceWorker.evaluate` callbacks run there.
+// The extension's global; `serviceWorker.evaluate` callbacks and the popup page's scripts use it.
 declare const chrome: typeof Browser;
 
 const ACTION_ROWS = [
@@ -74,4 +75,65 @@ test("opens on settings without a key and on the off-course home with one", asyn
     );
   }
   await attachScreenshots(page, testInfo, "home");
+});
+
+const MATERIALS = readFileSync("tests/fixtures/course-materials-confirmed.json", "utf8");
+
+/** The fixture's materials with the course slug in the practice checkpoint's name. */
+function materialsFor(slug: string): unknown {
+  return JSON.parse(
+    MATERIALS.replaceAll('"Practice checkpoint"', `"${slug}: Practice checkpoint"`),
+  );
+}
+
+test("an open Course requirements view follows its tab to another course", async ({
+  context,
+  page,
+  serviceWorker,
+  extensionId,
+}) => {
+  await serviceWorker.evaluate(() =>
+    chrome.storage.local.set({
+      aiProvider: "gemini",
+      aiProviderSettings: {
+        gemini: { apiKey: "test", model: "gemini-3.7-flash", verifiedAt: 1 },
+      },
+    }),
+  );
+  const courseA = await routeCourseraPage(context, "/learn/course-a/home/welcome", "<p>A</p>");
+  const courseC = "https://www.coursera.org/learn/course-c/home/welcome";
+  await context.route(courseC, (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: "<!doctype html><html><body><p>C</p></body></html>",
+    }),
+  );
+  const materialSlugs: string[] = [];
+  await context.route("**/api/onDemandCourseMaterials.v2/**", (route) => {
+    const slug = new URL(route.request().url()).searchParams.get("slug") ?? "";
+    materialSlugs.push(slug);
+    return route.fulfill({ json: materialsFor(slug) });
+  });
+
+  const coursePage = await context.newPage();
+  await coursePage.goto(courseA);
+  const tabId = await tabIdOf(serviceWorker, courseA);
+  await waitForContentScript(serviceWorker, tabId);
+  // The popup runs as a page of its own here, so it is pointed at the course tab as the active tab.
+  await page.addInitScript((id) => {
+    Object.defineProperty(chrome.tabs, "query", { value: async () => [await chrome.tabs.get(id)] });
+  }, tabId);
+  await page.goto(`chrome-extension://${extensionId}/popup.html`);
+  await page.getByRole("button", { name: "Course requirements" }).click();
+  await expect(page.getByText("course-a: Practice checkpoint")).toBeVisible();
+
+  // An in-page navigation, which Chrome reports as loading, then complete.
+  await coursePage.evaluate(() => history.pushState({}, "", "/learn/course-b/home/welcome"));
+  await expect(page.getByText("course-b: Practice checkpoint")).toBeVisible();
+
+  // A full load through tabs.update, as a requirement link opens; the new page's content script
+  // has to answer once Chrome reports the tab complete.
+  await page.evaluate(([id, url]) => chrome.tabs.update(id, { url }), [tabId, courseC] as const);
+  await expect(page.getByText("course-c: Practice checkpoint")).toBeVisible();
+  expect(materialSlugs).toEqual(["course-a", "course-b", "course-c"]);
 });

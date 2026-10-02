@@ -24,10 +24,11 @@ export const test = base.extend<{
   serviceWorker: Worker;
   extensionId: string;
 }>({
-  // biome-ignore lint/correctness/noEmptyPattern: Playwright reads fixture dependencies from the destructuring pattern.
-  context: async ({}, use) => {
+  // `locale` is Playwright's option: it sets the languages the browser asks for.
+  context: async ({ locale }, use) => {
     const context = await chromium.launchPersistentContext("", {
       channel: "chromium",
+      locale,
       args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`],
     });
     await use(context);
@@ -42,8 +43,9 @@ export const test = base.extend<{
 });
 
 /**
- * Serves `html` as the body of `https://www.coursera.org<path>`; every other Coursera request is a 404.
- * Routes registered later take precedence, so specs can add API routes afterwards.
+ * Serves `html` as the body of `https://www.coursera.org<path>`, a page in Coursera's English
+ * interface; every other Coursera request is a 404. Routes registered later take precedence, so
+ * specs can add API routes afterwards.
  */
 export async function routeCourseraPage(
   context: BrowserContext,
@@ -57,7 +59,7 @@ export async function routeCourseraPage(
     (route) =>
       route.fulfill({
         contentType: "text/html",
-        body: `<!doctype html><html><head><meta charset="utf-8"></head><body>${html}</body></html>`,
+        body: `<!doctype html><html lang="en"><head><meta charset="utf-8"></head><body>${html}</body></html>`,
       }),
   );
   return url;

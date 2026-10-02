@@ -231,3 +231,46 @@ test("Course requirements shows the learner's status and grade per activity", as
   ]);
   await attachScreenshots(page, testInfo, "requirements");
 });
+
+test.describe("in a Chrome that prefers Russian", () => {
+  test.use({ locale: "ru-RU" });
+
+  // Guards the title language: Coursera names items in the language a request asks for, and
+  // materials fetched in Chrome's languages came back in Russian on an English page.
+  test("Course requirements names activities in the page's language", async ({
+    context,
+    page,
+    serviceWorker,
+    extensionId,
+  }) => {
+    await serviceWorker.evaluate(() =>
+      chrome.storage.local.set({
+        aiProvider: "gemini",
+        aiProviderSettings: {
+          gemini: { apiKey: "test", model: "gemini-3.7-flash", verifiedAt: 1 },
+        },
+      }),
+    );
+    const course = await routeCourseraPage(context, "/learn/course-a/home/welcome", "<p>A</p>");
+    const russian = MATERIALS.replaceAll('"Practice checkpoint"', '"Контрольная точка"');
+    await context.route("**/api/onDemandCourseMaterials.v2/**", async (route) => {
+      // Like Coursera, answers in the first language the request asks for.
+      const language = (await route.request().allHeaders())["accept-language"] ?? "";
+      return route.fulfill({ json: JSON.parse(language.startsWith("ru") ? russian : MATERIALS) });
+    });
+
+    const coursePage = await context.newPage();
+    await coursePage.goto(course);
+    const tabId = await tabIdOf(serviceWorker, course);
+    await waitForContentScript(serviceWorker, tabId);
+    await page.addInitScript((id) => {
+      Object.defineProperty(chrome.tabs, "query", {
+        value: async () => [await chrome.tabs.get(id)],
+      });
+    }, tabId);
+    await page.goto(`chrome-extension://${extensionId}/popup.html`);
+    await page.getByRole("button", { name: "Course requirements" }).click();
+
+    await expect(page.getByText("Practice checkpoint")).toBeVisible();
+  });
+});

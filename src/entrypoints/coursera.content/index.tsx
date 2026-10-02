@@ -6,6 +6,7 @@ import { createBanner } from "@/content/banner/mount";
 import { connectBridge } from "@/content/bridge-client";
 import { createCompletionRunner } from "@/content/completion";
 import { createMonacoClient } from "@/content/monaco-client";
+import { fetchInPageLanguage } from "@/content/page-language";
 import { createContentHandlers } from "@/content/runtime";
 import { createSolveRunner } from "@/content/solve";
 import { createCourseState } from "@/coursera/course-state";
@@ -47,7 +48,7 @@ export default defineContentScript({
     const completion = createCompletionRunner({
       location,
       session,
-      fetch: (input, init) => window.fetch(input, init),
+      fetch: fetchInPageLanguage,
       banner,
       delay(ms) {
         const { promise, resolve } = Promise.withResolvers<void>();
@@ -64,7 +65,7 @@ export default defineContentScript({
         monaco,
         solve,
         completion,
-        fetch: (input, init) => window.fetch(input, init),
+        fetch: fetchInPageLanguage,
         draftReply: (messages, currentQuestion) =>
           sendToBackground("draftDialogueReply", { messages, currentQuestion }),
       }),

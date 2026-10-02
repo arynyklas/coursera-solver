@@ -7,13 +7,15 @@ import {
 } from "@/popup/lib/format";
 
 describe("requirement formatting", () => {
-  it("formats durations like the legacy popup", () => {
+  // Guards the unit: Coursera's timeCommitment is in milliseconds; read as seconds, a 30-minute
+  // quiz showed as "500 hr".
+  it("formats Coursera's millisecond estimates in minutes and hours", () => {
     expect(formatRequirementTime(null)).toBe("");
     expect(formatRequirementTime(0)).toBe("");
-    expect(formatRequirementTime(20)).toBe("1 min");
-    expect(formatRequirementTime(600)).toBe("10 min");
-    expect(formatRequirementTime(3600)).toBe("1 hr");
-    expect(formatRequirementTime(5400)).toBe("1 hr 30 min");
+    expect(formatRequirementTime(20_000)).toBe("1 min");
+    expect(formatRequirementTime(1_800_000)).toBe("30 min");
+    expect(formatRequirementTime(7_200_000)).toBe("2 hr");
+    expect(formatRequirementTime(5_400_000)).toBe("1 hr 30 min");
   });
 
   it("prints whole weights without decimals and others with one", () => {

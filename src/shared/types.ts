@@ -124,6 +124,7 @@ export interface Requirement {
   groupRequirement: GroupRequirement | null;
   locked: boolean;
   lockReason: string;
+  /** Coursera's estimate of the time the item takes, in milliseconds. */
   timeCommitment: number | null;
   source: "confirmed" | "detected";
   link: string | null;

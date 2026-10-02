@@ -1,7 +1,10 @@
-/** Ported from `popup.js:357-364` in v1.1.0 (c2f8b71). */
-export function formatRequirementTime(seconds: number | null): string {
-  if (seconds === null || !Number.isFinite(seconds) || seconds <= 0) return "";
-  const minutes = Math.max(1, Math.round(seconds / 60));
+/**
+ * Coursera's time estimate, which is in milliseconds, as minutes and hours. Ported from
+ * `popup.js:357-364` in v1.1.0 (c2f8b71), which read it as seconds.
+ */
+export function formatRequirementTime(milliseconds: number | null): string {
+  if (milliseconds === null || !Number.isFinite(milliseconds) || milliseconds <= 0) return "";
+  const minutes = Math.max(1, Math.round(milliseconds / 60_000));
   if (minutes < 60) return `${minutes} min`;
   const hours = Math.floor(minutes / 60);
   const remainingMinutes = minutes % 60;

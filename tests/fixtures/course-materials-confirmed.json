@@ -24,7 +24,7 @@
         "lessonId": "lesson-1",
         "name": "Practice checkpoint",
         "slug": "practice-checkpoint",
-        "timeCommitment": 600,
+        "timeCommitment": 600000,
         "contentSummary": { "typeName": "quiz" },
         "isLocked": false
       },
@@ -34,7 +34,7 @@
         "lessonId": "lesson-1",
         "name": "Module assessment",
         "slug": "module-assessment",
-        "timeCommitment": 1200,
+        "timeCommitment": 1200000,
         "contentSummary": { "typeName": "exam" },
         "lockedStatus": "locked_prerequisite",
         "itemLockSummary": "Complete the prerequisite first."

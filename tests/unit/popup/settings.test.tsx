@@ -120,7 +120,7 @@ describe("provider settings", () => {
     expect(back.disabled).toBe(true);
     expect(save.disabled).toBe(true);
 
-    await screen.findByRole("heading", { name: "Auto Solver" }, { timeout: 2000 });
+    await screen.findByRole("heading", { name: "Coursera Auto Solver" }, { timeout: 2000 });
     await user.click(screen.getByRole("button", { name: "AI provider settings" }));
     await screen.findByRole("heading", { name: "AI provider" });
     await sleep(1000);
@@ -355,7 +355,7 @@ describe("provider settings", () => {
       });
       renderPopup();
 
-      await screen.findByRole("heading", { name: "Auto Solver" });
+      await screen.findByRole("heading", { name: "Coursera Auto Solver" });
       expect(screen.getByText(/Qwen\/Qwen3-8B/)).toBeTruthy();
     });
   });

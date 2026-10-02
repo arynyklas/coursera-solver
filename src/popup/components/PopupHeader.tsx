@@ -12,7 +12,7 @@ export function PopupHeader({ onOpenSettings }: { onOpenSettings: () => void }) 
         <Sparkles className="size-4" aria-hidden />
       </div>
       <div>
-        <h1 className={TITLE_CLASS}>Auto Solver</h1>
+        <h1 className={TITLE_CLASS}>Coursera Auto Solver</h1>
         <p className="font-mono text-[11.5px] leading-tight text-muted-foreground">
           v{browser.runtime.getManifest().version}
         </p>

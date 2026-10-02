@@ -12,6 +12,15 @@ export function Footer() {
         >
           YG
         </a>
+        {" · v2 by "}
+        <a
+          href="https://github.com/arynyklas"
+          target="_blank"
+          rel="noreferrer"
+          className="underline underline-offset-2"
+        >
+          Aryn
+        </a>
       </span>
     </footer>
   );

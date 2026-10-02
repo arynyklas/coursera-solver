@@ -15,8 +15,6 @@
 
 ![Coursera Auto Solver UI](assets/image.png)
 
-🎬 **[Watch the Demo on YouTube](https://www.youtube.com/watch?v=a060UX8dlHE)**
-
 A sleek, lightweight Chrome Extension to automate and help you navigate your Coursera courses with ease. Version 2 is a TypeScript + React rewrite built with [WXT](https://wxt.dev).
 
 The extension never submits anything for you. Quiz answers are filled in for you to review and submit yourself, and dialogue replies are placed in the message box without being sent.
@@ -187,4 +185,4 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the runtimes, source layout
 
 ***
 
-Created by [YG](https://github.com/Youssef-Ghafir)
+Created by [YG](https://github.com/Youssef-Ghafir) · v2 by [Aryn](https://github.com/arynyklas)

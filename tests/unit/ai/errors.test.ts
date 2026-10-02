@@ -27,4 +27,14 @@ describe("providerErrorMessage", () => {
       "The selected Groq model is unavailable for this account.",
     );
   });
+
+  it("passes on the server's explanation of a 5xx, and only says try later without one", () => {
+    const body = { error: { message: "upstream request timeout" } };
+    expect(providerErrorMessage("vllm", 500, body)).toBe(
+      "vLLM failed with HTTP 500: upstream request timeout",
+    );
+    expect(providerErrorMessage("gemini", 503, {})).toBe(
+      "Gemini is temporarily unavailable. Try again later.",
+    );
+  });
 });

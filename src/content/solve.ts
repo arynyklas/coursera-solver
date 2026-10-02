@@ -7,6 +7,14 @@ import type { Answer, Question } from "@/shared/types";
 
 export const SOLVE_BUSY_MESSAGE = "A quiz is already being solved on this page.";
 
+/**
+ * Questions per AI request. A reasoning model can think for minutes over a whole quiz, past the
+ * request timeout or a server's own limit; a few questions each finish sooner, side by side.
+ */
+const QUESTIONS_PER_REQUEST = 5;
+/** Requests waiting at once, which keeps a big exam under the providers' per-minute limits. */
+const PARALLEL_REQUESTS = 4;
+
 export interface SolveDeps {
   doc: Document;
   monaco: MonacoClient;
@@ -40,19 +48,55 @@ export function createSolveRunner(deps: SolveDeps): SolveRunner {
       const imageCount = questions.reduce((total, { images }) => total + (images?.length ?? 0), 0);
       const images =
         imageCount === 0 ? "" : ` with ${imageCount} ${imageCount === 1 ? "image" : "images"}`;
+      const parts = Array.from({ length: Math.ceil(count / QUESTIONS_PER_REQUEST) }, (_, index) =>
+        questions.slice(index * QUESTIONS_PER_REQUEST, (index + 1) * QUESTIONS_PER_REQUEST),
+      );
+      const asking = `Asking ${label} about ${count} ${count === 1 ? "question" : "questions"}${images}${parts.length > 1 ? ` in ${parts.length} parts` : ""}…`;
       banner.show({
         tone: "info",
         title,
-        description: `Asking ${label} about ${count} ${count === 1 ? "question" : "questions"}${images}…`,
+        description: asking,
+        ...(parts.length > 1 ? { progress: 0 } : {}),
       });
-      const answers = await deps.requestAnswers(questions);
+
+      // A part that fails costs only its own questions; the rest are still filled in.
+      const answers: Answer[] = [];
+      const unanswered: { questionNumber: number; message: string }[] = [];
+      let firstError: unknown;
+      let finished = 0;
+      const queue = parts.values();
+      await Promise.all(
+        Array.from({ length: Math.min(PARALLEL_REQUESTS, parts.length) }, async () => {
+          // The workers share one queue, so each part is asked once.
+          for (const part of queue) {
+            try {
+              answers.push(...(await deps.requestAnswers(part)));
+            } catch (error) {
+              firstError ??= error;
+              const message = errorMessage(error, "Could not solve this assessment.");
+              unanswered.push(...part.map(({ questionNumber }) => ({ questionNumber, message })));
+            }
+            finished += 1;
+            if (parts.length > 1) {
+              banner.show({
+                tone: "info",
+                title,
+                description: asking,
+                progress: finished / parts.length,
+              });
+            }
+          }
+        }),
+      );
+      // Nothing came back: the request error says why, as for a quiz asked in one request.
+      if (unanswered.length === count) throw firstError;
 
       banner.show({ tone: "info", title, description: "Filling in answers…" });
       const { applied, failures } = await applyAnswers(answers, handles, monaco, {
         slateDelayMs: deps.slateDelayMs,
       });
 
-      const problems = [...failures, ...issues];
+      const problems = [...unanswered, ...failures, ...issues];
       if (problems.length === 0) {
         banner.show({
           tone: "success",

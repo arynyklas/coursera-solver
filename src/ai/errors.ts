@@ -42,7 +42,12 @@ export function providerErrorMessage(
     if (status === 404) return `The selected ${label} model is unavailable for this account.`;
   }
   if (status === 429) return `${label} rate limit or quota reached. Try again later.`;
-  if (status >= 500) return `${label} is temporarily unavailable. Try again later.`;
+  if (status >= 500) {
+    // A server's own explanation names the cause, such as a gateway that timed out.
+    return serverMessage
+      ? `${label} failed with HTTP ${status}: ${serverMessage}`
+      : `${label} is temporarily unavailable. Try again later.`;
+  }
   if (serverMessage) return `${label}: ${serverMessage}`;
   return `${label} request failed with HTTP ${status}.`;
 }

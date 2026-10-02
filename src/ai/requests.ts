@@ -192,7 +192,9 @@ export function buildGenerationRequest(
   const body: Record<string, unknown> = {
     model,
     messages: [{ role: "user", content }],
-    stream: false,
+    // A self-hosted server often sits behind a proxy that drops a reply sending nothing for about
+    // a minute, which a reasoning model's single reply can take; streamed, the reply keeps arriving.
+    stream: getProvider(providerId).selfHosted === true,
   };
 
   if (providerId === "xai" || providerId === "openrouter" || providerId === "vllm") {

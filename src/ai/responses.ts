@@ -18,6 +18,32 @@ type RawAnswer =
   | null
   | undefined;
 type ModelListResponse = { data?: unknown } | null | undefined;
+type ChatStreamEvent =
+  | { choices?: { delta?: { content?: unknown } }[]; error?: unknown }
+  | null
+  | undefined;
+
+/**
+ * A streamed chat completion joined into its answer: the content of every event in order,
+ * without the reasoning. A server that fails partway sends an `error` event instead.
+ */
+export function joinChatStream(eventStream: string): { content: string } | { error: unknown } {
+  let content = "";
+  for (const line of eventStream.split(/\r?\n/)) {
+    const data = line.startsWith("data:") ? line.slice(5).trim() : "";
+    if (!data || data === "[DONE]") continue;
+    let event: ChatStreamEvent;
+    try {
+      event = JSON.parse(data);
+    } catch {
+      continue;
+    }
+    if (event?.error) return { error: event.error };
+    const delta = event?.choices?.[0]?.delta?.content;
+    if (typeof delta === "string") content += delta;
+  }
+  return { content };
+}
 
 export function extractResponseText(providerId: ProviderId, data: unknown): string {
   if (providerId === "gemini") {

@@ -5,7 +5,7 @@ import { providerErrorMessage, shouldRetryWithoutSchema } from "./errors";
 import type { ImageAttachment } from "./images";
 import { getProvider } from "./providers";
 import { buildGenerationRequest, type RequestSpec } from "./requests";
-import { extractResponseText } from "./responses";
+import { extractResponseText, joinChatStream } from "./responses";
 import type { JsonSchema } from "./schemas";
 
 export const AI_TIMEOUT_MS = 120_000;
@@ -63,6 +63,18 @@ export async function requestJSON(
     } catch (error) {
       if (timedOut) throw timeoutError();
       throw error;
+    }
+
+    // A streamed reply, joined, reads like a single one; an error partway fails the request.
+    if (response.ok && response.headers.get("content-type")?.includes("text/event-stream")) {
+      const joined = joinChatStream(rawBody);
+      return "error" in joined
+        ? { ok: false, status: 500, data: { error: joined.error } }
+        : {
+            ok: true,
+            status: response.status,
+            data: { choices: [{ message: { content: joined.content } }] },
+          };
     }
 
     let data: unknown = {};

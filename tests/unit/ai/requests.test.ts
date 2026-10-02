@@ -62,6 +62,17 @@ describe("buildGenerationRequest", () => {
       type: "json_schema",
       json_schema: { name: "quiz_answers", strict: true, schema: ANSWER_SCHEMA },
     });
+    // A proxy in front of the server can drop a reply that sends nothing for a minute.
+    expect(body.stream).toBe(true);
+  });
+
+  it("asks the hosted chat-completions providers for one reply", () => {
+    for (const providerId of ["xai", "deepseek", "groq", "openrouter"] as const) {
+      const body = JSON.parse(
+        String(buildGenerationRequest(providerId, apiKey, "model", prompt).options.body),
+      );
+      expect(body.stream).toBe(false);
+    }
   });
 
   it("calls a vLLM server started without --api-key with no Authorization header", () => {

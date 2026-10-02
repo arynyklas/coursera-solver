@@ -228,6 +228,50 @@ describe("callProvider", () => {
     });
   });
 
+  describe("with a streamed vLLM reply", () => {
+    const vllmCall = {
+      ...call,
+      provider: "vllm" as const,
+      apiKey: "",
+      baseUrl: "http://gpu.lan:8000/v1",
+    };
+    const stream = (...events: unknown[]) =>
+      new Response(
+        `${events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("")}data: [DONE]\n\n`,
+        { status: 200, headers: { "Content-Type": "text/event-stream; charset=utf-8" } },
+      );
+
+    it("joins the streamed answer and leaves out the reasoning", async () => {
+      const fetchStub = vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(
+          stream(
+            { choices: [{ delta: { role: "assistant", content: "" } }] },
+            { choices: [{ delta: { reasoning: "Rarest first, so B3." } }] },
+            { choices: [{ delta: { content: '{"answers":' } }] },
+            { choices: [{ delta: { content: "[]}" }, finish_reason: "stop" }] },
+          ),
+        );
+
+      await expect(callProvider(vllmCall, { fetch: fetchStub })).resolves.toBe('{"answers":[]}');
+    });
+
+    it("reports an error the server sends in the middle of the stream", async () => {
+      const fetchStub = vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(
+          stream(
+            { choices: [{ delta: { content: '{"answers":' } }] },
+            { error: { message: "The engine stopped.", code: 500 } },
+          ),
+        );
+
+      await expect(callProvider(vllmCall, { fetch: fetchStub })).rejects.toThrow(
+        "vLLM failed with HTTP 500: The engine stopped.",
+      );
+    });
+  });
+
   describe("when a self-hosted server cannot be reached", () => {
     const vllmCall = {
       ...call,

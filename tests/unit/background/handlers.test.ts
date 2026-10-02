@@ -106,6 +106,30 @@ describe("background handlers", () => {
     await expect(solveWith("none")).resolves.toEqual({ effort: "medium" });
   });
 
+  it("leaves thinking to a vLLM server's model until a level is saved", async () => {
+    const answers = JSON.stringify({ answers: [{ questionNumber: 1, correctOptions: ["A"] }] });
+    const fetchStub = vi.fn<typeof fetch>(
+      async () =>
+        new Response(JSON.stringify({ choices: [{ message: { content: answers } }] }), {
+          status: 200,
+        }),
+    );
+    const handlers = createBackgroundHandlers({ fetch: fetchStub });
+    const solveWith = async (effort?: string) => {
+      await browser.storage.local.set({
+        aiProvider: "vllm",
+        aiProviderSettings: {
+          vllm: { apiKey: "", model: "Qwen/Qwen3-8B", baseUrl: "http://gpu.lan:8000/v1", effort },
+        },
+      });
+      await handlers.solveQuestions({ questions }, sender);
+      return JSON.parse(String(fetchStub.mock.calls.at(-1)?.[1]?.body));
+    };
+
+    await expect(solveWith(undefined)).resolves.not.toHaveProperty("reasoning_effort");
+    await expect(solveWith("none")).resolves.toHaveProperty("reasoning_effort", "none");
+  });
+
   describe("quiz images", () => {
     const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 7]);
     const imageUrl = "https://d3c33hcgiwev3.cloudfront.net/imageAssetProxy.v1/diagram.png";

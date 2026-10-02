@@ -31,7 +31,8 @@ export async function loadAIConfiguration(): Promise<{
   apiKey: string;
   model: string;
   baseUrl: string;
-  effort: ReasoningEffort;
+  /** Absent when the model decides how long it thinks. */
+  effort: ReasoningEffort | undefined;
   ready: boolean;
 }> {
   await migrateLegacyGeminiKey();

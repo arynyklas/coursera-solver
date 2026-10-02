@@ -35,9 +35,10 @@ const EFFORTS: ReasoningEffort[] = ["low", "medium", "high"];
 
 /**
  * Claude, Grok 4.6, Gemini 3.1 Pro and DeepSeek think at high effort unless told otherwise, which
- * can outlast the request timeout; medium is OpenAI's own default and enough for a quiz.
+ * can outlast the request timeout; medium is OpenAI's own default and enough for a quiz. A
+ * self-hosted server gets none until the user picks one: what a level does depends on its model.
  */
-export const DEFAULT_EFFORT: ReasoningEffort = "medium";
+const DEFAULT_EFFORT: ReasoningEffort = "medium";
 
 export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
   gemini: {
@@ -165,7 +166,8 @@ export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
     supportsStrictSchema: true,
     readsImages: true,
     // vLLM hands the effort to the model's chat template. Hybrid models such as Qwen3 only switch
-    // thinking on or off, so "none" is the one level that makes them answer sooner.
+    // thinking on or off, so "none" is the one level that makes them answer sooner; Gemma 4 thinks
+    // only when given a level, and GLM-5 reads medium as its maximum.
     efforts: ["none", ...EFFORTS],
     models: [],
     selfHosted: true,
@@ -190,9 +192,14 @@ export function modelLabel(providerId: ProviderId, modelId: string): string {
   );
 }
 
-/** The saved effort when the provider offers it, otherwise the default. */
-export function effortFor(providerId: ProviderId, saved: unknown): ReasoningEffort {
-  return PROVIDERS[providerId].efforts.find((effort) => effort === saved) ?? DEFAULT_EFFORT;
+/**
+ * The saved effort when the provider offers it, otherwise the default; `undefined` leaves it to
+ * the model, and the request then carries none.
+ */
+export function effortFor(providerId: ProviderId, saved: unknown): ReasoningEffort | undefined {
+  const provider = PROVIDERS[providerId];
+  const offered = provider.efforts.find((effort) => effort === saved);
+  return offered ?? (provider.selfHosted ? undefined : DEFAULT_EFFORT);
 }
 
 /** Whether requests to the model carry a reasoning effort; models outside the presets do. */

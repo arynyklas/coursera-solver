@@ -26,6 +26,8 @@ import { isProviderReady, type ProviderSettingsMap } from "@/shared/storage";
 import type { ProviderId, ReasoningEffort } from "@/shared/types";
 
 const CUSTOM_MODEL = "__custom__";
+/** The effort choice that sends none, leaving it to a self-hosted server's model. */
+const MODEL_DEFAULT = "__model__";
 const SUCCESS_REDIRECT_MS = 750;
 
 const FIELD_CLASS = "flex flex-col gap-[5px]";
@@ -45,7 +47,8 @@ interface Form {
   customModel: string;
   /** The server URL as typed; self-hosted providers only. */
   baseUrl: string;
-  effort: ReasoningEffort;
+  /** Absent leaves it to the model. */
+  effort: ReasoningEffort | undefined;
 }
 
 interface Status {
@@ -282,7 +285,13 @@ export function Settings({
         ...server,
       });
       // The user verified this key, so it is stored even if the popup view has closed meanwhile.
-      await save(target, { apiKey, model, effort: form.effort, ...server, verifiedAt: Date.now() });
+      await save(target, {
+        apiKey,
+        model,
+        ...(form.effort ? { effort: form.effort } : {}),
+        ...server,
+        verifiedAt: Date.now(),
+      });
       if (!mounted.current) return;
       setStatus({ tone: "success", text: reply.message || `${label} is connected.` });
       redirect.current = window.setTimeout(() => onNavigate("home"), SUCCESS_REDIRECT_MS);
@@ -419,10 +428,10 @@ export function Settings({
         Reasoning effort
       </Label>
       <Select
-        value={form.effort}
+        value={form.effort ?? MODEL_DEFAULT}
         onValueChange={(value) => {
           const effort = provider.efforts.find((level) => level === value);
-          if (effort) setForm((current) => ({ ...current, effort }));
+          setForm((current) => ({ ...current, effort }));
         }}
         disabled={verifying}
       >
@@ -430,6 +439,9 @@ export function Settings({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
+          {provider.selfHosted ? (
+            <SelectItem value={MODEL_DEFAULT}>Model default</SelectItem>
+          ) : null}
           {provider.efforts.map((effort) => (
             <SelectItem key={effort} value={effort}>
               {EFFORT_LABELS[effort]}
@@ -438,7 +450,9 @@ export function Settings({
         </SelectContent>
       </Select>
       <span className={HINT_CLASS}>
-        How long the model thinks before it answers. Lower answers sooner; High may time out.
+        {provider.selfHosted
+          ? "What a level does depends on the model. None turns thinking off where the model allows it."
+          : "How long the model thinks before it answers. Lower answers sooner; High may time out."}
       </span>
     </div>
   );

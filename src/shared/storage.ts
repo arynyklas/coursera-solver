@@ -5,7 +5,7 @@ import type { ProviderId, ReasoningEffort } from "./types";
 export interface ProviderSettings {
   apiKey: string;
   model: string;
-  /** Read through `effortFor`: settings saved before efforts existed have none. */
+  /** Read through `effortFor`; absent leaves it to the default: medium, or the model's own. */
   effort?: ReasoningEffort;
   verifiedAt?: number;
   /** The normalized server URL of a self-hosted provider. */
@@ -22,7 +22,7 @@ export interface ServerDraft {
   baseUrl: string;
   apiKey: string;
   model: string;
-  effort: ReasoningEffort;
+  effort?: ReasoningEffort;
 }
 
 export const activeProviderItem = storage.defineItem<string>("local:aiProvider", {

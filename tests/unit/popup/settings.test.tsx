@@ -178,15 +178,21 @@ describe("provider settings", () => {
     });
   });
 
-  it("offers no reasoning effort for a model that does not think", async () => {
+  it("shows the reasoning effort only for a model that takes one", async () => {
     await browser.storage.local.set({
       aiProvider: "anthropic",
       aiProviderSettings: { anthropic: { apiKey: "", model: "claude-haiku-4-5" } },
     });
+    const user = userEvent.setup();
     renderPopup();
 
-    await screen.findByRole("combobox", { name: "Model" });
+    const model = await screen.findByRole("combobox", { name: "Model" });
     expect(screen.queryByRole("combobox", { name: "Reasoning effort" })).toBeNull();
+    await user.click(model);
+    await user.click(await screen.findByRole("option", { name: "Claude Sonnet 5 — Balanced" }));
+    expect(screen.getByRole("combobox", { name: "Reasoning effort" }).textContent).toContain(
+      "Medium",
+    );
   });
 
   describe("vLLM server", () => {
@@ -217,6 +223,10 @@ describe("provider settings", () => {
       expect(screen.getByRole("combobox", { name: "Model" }).textContent).toContain(
         "Qwen/Qwen3-8B",
       );
+      // What a level does depends on the served model, so nothing is sent until one is picked.
+      expect(screen.getByRole("combobox", { name: "Reasoning effort" }).textContent).toContain(
+        "Model default",
+      );
 
       await user.click(screen.getByRole("button", { name: "Save & verify" }));
       await screen.findByText("vLLM is connected.");
@@ -233,10 +243,10 @@ describe("provider settings", () => {
           apiKey: "",
           model: "Qwen/Qwen3-8B",
           baseUrl: "http://localhost:8000/v1",
-          effort: "medium",
           verifiedAt: expect.any(Number),
         },
       });
+      expect(stored.aiProviderSettings).not.toHaveProperty("vllm.effort");
     });
 
     it("lets a vLLM server answer without thinking", async () => {

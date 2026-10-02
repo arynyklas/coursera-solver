@@ -45,8 +45,8 @@ describe("applyAnswers handles (F2)", () => {
 
     const result = await applyAnswers(
       [
-        { questionNumber: 1, correctOptions: ["answer"] },
-        { questionNumber: 2, correctOptions: ["overwrite"] },
+        { questionNumber: 1, text: "answer" },
+        { questionNumber: 2, text: "overwrite" },
       ],
       handles,
       noMonaco,
@@ -70,11 +70,7 @@ describe("applyAnswers handles (F2)", () => {
     const first = byId<HTMLInputElement>("first");
     byId("block-1").remove();
 
-    const result = await applyAnswers(
-      [{ questionNumber: 1, correctOptions: ["answer"] }],
-      handles,
-      noMonaco,
-    );
+    const result = await applyAnswers([{ questionNumber: 1, text: "answer" }], handles, noMonaco);
 
     expect(result).toEqual({
       applied: [],
@@ -97,11 +93,7 @@ describe("applyAnswers stale nodes", () => {
     current.type = "text";
     old.replaceWith(current);
 
-    const result = await applyAnswers(
-      [{ questionNumber: 1, correctOptions: ["42"] }],
-      handles,
-      noMonaco,
-    );
+    const result = await applyAnswers([{ questionNumber: 1, text: "42" }], handles, noMonaco);
 
     expect(result).toEqual({ applied: [1], failures: [] });
     expect(current.value).toBe("42");
@@ -119,11 +111,7 @@ describe("applyAnswers stale nodes", () => {
     const events: string[] = [];
     field.addEventListener("input", (event) => events.push(event.type));
 
-    const result = await applyAnswers(
-      [{ questionNumber: 1, correctOptions: ["answer"] }],
-      handles,
-      noMonaco,
-    );
+    const result = await applyAnswers([{ questionNumber: 1, text: "answer" }], handles, noMonaco);
 
     expect(result).toEqual({ applied: [], failures: [{ questionNumber: 1, message: STALE }] });
     expect(field.value).toBe("");
@@ -143,12 +131,9 @@ describe("applyAnswers stale nodes", () => {
       const execCommand = vi.fn(() => true);
       document.execCommand = execCommand;
 
-      const pending = applyAnswers(
-        [{ questionNumber: 1, correctOptions: ["An essay."] }],
-        handles,
-        noMonaco,
-        { slateDelayMs: 50 },
-      );
+      const pending = applyAnswers([{ questionNumber: 1, text: "An essay." }], handles, noMonaco, {
+        slateDelayMs: 50,
+      });
       await vi.advanceTimersByTimeAsync(50);
 
       await expect(pending).resolves.toEqual({
@@ -171,7 +156,7 @@ describe("applyAnswers stale nodes", () => {
     const [a, b] = document.querySelectorAll("input");
 
     const result = await applyAnswers(
-      [{ questionNumber: 1, correctOptions: ["B"] }],
+      [{ questionNumber: 1, optionNumbers: [2] }],
       handles,
       noMonaco,
     );
@@ -184,7 +169,7 @@ describe("applyAnswers stale nodes", () => {
 });
 
 describe("applyAnswers choices (F3)", () => {
-  it("clicks nothing when any answer text is missing from the options", async () => {
+  it("clicks nothing when any chosen number is not an option", async () => {
     // Guards content.js:258-266 in v1.1.0 (c2f8b71), which clicked before checking every answer.
     document.body.innerHTML = `
       <section data-testid="part-Submission_MultipleChoiceQuestion">${prompt("Pick")}${option("A", "radio")}${option("B", "radio")}</section>`;
@@ -192,7 +177,7 @@ describe("applyAnswers choices (F3)", () => {
     const clicks = countClicks(document.querySelectorAll("input"));
 
     const result = await applyAnswers(
-      [{ questionNumber: 1, correctOptions: ["A", "C"] }],
+      [{ questionNumber: 1, optionNumbers: [1, 3] }],
       handles,
       noMonaco,
     );
@@ -204,14 +189,16 @@ describe("applyAnswers choices (F3)", () => {
     expect(clicks()).toBe(0);
   });
 
-  it("fails without clicks when no answer matches", async () => {
+  it("clicks nothing when the options are no longer in the order they were read", async () => {
+    // The numbers count the options read at extraction; after a reorder they point elsewhere.
     document.body.innerHTML = `
-      <section data-testid="part-Submission_MultipleChoiceQuestion">${prompt("Pick")}${option("A", "radio")}${option("B", "radio")}</section>`;
+      <section data-testid="part-Submission_MultipleChoiceQuestion">${prompt("Pick")}<div id="options">${option("A", "radio")}${option("B", "radio")}</div></section>`;
     const { handles } = await extract();
+    byId("options").innerHTML = `${option("B", "radio")}${option("A", "radio")}`;
     const clicks = countClicks(document.querySelectorAll("input"));
 
     const result = await applyAnswers(
-      [{ questionNumber: 1, correctOptions: ["C"] }],
+      [{ questionNumber: 1, optionNumbers: [2] }],
       handles,
       noMonaco,
     );
@@ -233,7 +220,7 @@ describe("applyAnswers choices (F3)", () => {
     const clicks = countClicks(document.querySelectorAll("input"));
 
     const result = await applyAnswers(
-      [{ questionNumber: 1, correctOptions: ["B"] }],
+      [{ questionNumber: 1, optionNumbers: [2] }],
       handles,
       noMonaco,
     );
@@ -244,6 +231,23 @@ describe("applyAnswers choices (F3)", () => {
     expect(clicks()).toBe(0);
   });
 
+  it("selects the chosen one of two options with the same text", async () => {
+    document.body.innerHTML = `
+      <section data-testid="part-Submission_MultipleChoiceQuestion">${prompt("Pick")}${option("Same", "radio")}${option("Same", "radio")}</section>`;
+    const { handles } = await extract();
+    const [first, second] = document.querySelectorAll("input");
+
+    const result = await applyAnswers(
+      [{ questionNumber: 1, optionNumbers: [2] }],
+      handles,
+      noMonaco,
+    );
+
+    expect(result).toEqual({ applied: [1], failures: [] });
+    expect(first?.checked).toBe(false);
+    expect(second?.checked).toBe(true);
+  });
+
   it("selects the matching radio", async () => {
     document.body.innerHTML = `
       <section data-testid="part-Submission_MultipleChoiceQuestion">${prompt("Pick")}${option("A", "radio", true)}${option("B", "radio")}</section>`;
@@ -251,7 +255,7 @@ describe("applyAnswers choices (F3)", () => {
     const [a, b] = document.querySelectorAll("input");
 
     const result = await applyAnswers(
-      [{ questionNumber: 1, correctOptions: ["B"] }],
+      [{ questionNumber: 1, optionNumbers: [2] }],
       handles,
       noMonaco,
     );
@@ -268,7 +272,7 @@ describe("applyAnswers choices (F3)", () => {
     const clicks = countClicks(document.querySelectorAll("input"));
 
     const result = await applyAnswers(
-      [{ questionNumber: 1, correctOptions: ["A"] }],
+      [{ questionNumber: 1, optionNumbers: [1] }],
       handles,
       noMonaco,
     );
@@ -284,7 +288,7 @@ describe("applyAnswers choices (F3)", () => {
     const [a, b] = document.querySelectorAll("input");
 
     const result = await applyAnswers(
-      [{ questionNumber: 1, correctOptions: ["B"] }],
+      [{ questionNumber: 1, optionNumbers: [2] }],
       handles,
       noMonaco,
     );
@@ -312,11 +316,7 @@ describe("applyAnswers text fields (F4)", () => {
     field.addEventListener("input", (event) => events.push(event));
     field.addEventListener("change", (event) => events.push(event));
 
-    const result = await applyAnswers(
-      [{ questionNumber: 1, correctOptions: ["42"] }],
-      handles,
-      noMonaco,
-    );
+    const result = await applyAnswers([{ questionNumber: 1, text: "42" }], handles, noMonaco);
 
     expect(result).toEqual({ applied: [1], failures: [] });
     expect(spy).not.toHaveBeenCalled();
@@ -334,7 +334,7 @@ describe("applyAnswers text fields (F4)", () => {
       <section data-testid="part-Submission_TextQuestion">${prompt("Type")}<textarea id="field"></textarea></section>`;
     const { handles } = await extract();
 
-    await applyAnswers([{ questionNumber: 1, correctOptions: ["long answer"] }], handles, noMonaco);
+    await applyAnswers([{ questionNumber: 1, text: "long answer" }], handles, noMonaco);
 
     expect(byId<HTMLTextAreaElement>("field").value).toBe("long answer");
   });
@@ -353,12 +353,9 @@ describe("applyAnswers essays", () => {
       const execCommand = vi.fn(() => true);
       document.execCommand = execCommand;
 
-      const pending = applyAnswers(
-        [{ questionNumber: 1, correctOptions: ["An essay."] }],
-        handles,
-        noMonaco,
-        { slateDelayMs: 80 },
-      );
+      const pending = applyAnswers([{ questionNumber: 1, text: "An essay." }], handles, noMonaco, {
+        slateDelayMs: 80,
+      });
       await vi.advanceTimersByTimeAsync(0);
       expect(focus).toHaveBeenCalledTimes(1);
       await vi.advanceTimersByTimeAsync(79);
@@ -385,7 +382,7 @@ describe("applyAnswers code", () => {
     const replace = vi.fn(async () => {});
 
     const result = await applyAnswers(
-      [{ questionNumber: 1, correctOptions: ["```python\nprint(1)\n```"] }],
+      [{ questionNumber: 1, text: "```python\nprint(1)\n```" }],
       await codeHandles(),
       { replace },
     );
@@ -398,7 +395,7 @@ describe("applyAnswers code", () => {
     const replace = vi.fn(async () => {});
 
     const result = await applyAnswers(
-      [{ questionNumber: 1, correctOptions: ["```\n  \n```"] }],
+      [{ questionNumber: 1, text: "```\n  \n```" }],
       await codeHandles(),
       { replace },
     );
@@ -416,7 +413,7 @@ describe("applyAnswers code", () => {
     });
 
     const result = await applyAnswers(
-      [{ questionNumber: 1, correctOptions: ["print(1)"] }],
+      [{ questionNumber: 1, text: "print(1)" }],
       await codeHandles(),
       { replace },
     );
@@ -432,11 +429,9 @@ describe("applyAnswers code", () => {
     document.querySelector(".monaco-editor")?.setAttribute("data-uri", "inmemory://model/2");
     const replace = vi.fn(async () => {});
 
-    const result = await applyAnswers(
-      [{ questionNumber: 1, correctOptions: ["print(1)"] }],
-      handles,
-      { replace },
-    );
+    const result = await applyAnswers([{ questionNumber: 1, text: "print(1)" }], handles, {
+      replace,
+    });
 
     expect(result).toEqual({ applied: [], failures: [{ questionNumber: 1, message: STALE }] });
     expect(replace).not.toHaveBeenCalled();
@@ -454,7 +449,7 @@ describe("cleanCodeAnswer", () => {
 });
 
 describe("applyAnswers with image-only options", () => {
-  it("selects an option shown only as an image by its generated name", async () => {
+  it("selects an option shown only as an image by its number", async () => {
     document.body.innerHTML = `
       <section data-testid="part-Submission_MultipleChoiceQuestion">${prompt("Which diagram?")}
         <label class="rc-Option"><input id="first" type="radio" name="q"><span data-testid="cml-viewer"><img src="https://cdn.example/a.png" alt=""></span></label>
@@ -463,7 +458,7 @@ describe("applyAnswers with image-only options", () => {
     const { handles } = await extract();
 
     const result = await applyAnswers(
-      [{ questionNumber: 1, correctOptions: ["Image option 2"] }],
+      [{ questionNumber: 1, optionNumbers: [2] }],
       handles,
       noMonaco,
     );

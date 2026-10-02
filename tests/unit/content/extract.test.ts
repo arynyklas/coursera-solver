@@ -54,10 +54,12 @@ describe("extractAssessment", () => {
       question: "Which option is a placeholder?",
       options: ["Option A", "Option B"],
     });
+    // A choice handle keeps the options read now: answers choose by their numbers.
     expect(handles.get(1)).toEqual({
       kind: "choice",
       block: document.querySelector('[data-testid="part-Submission_MultipleChoiceQuestion"]'),
       prompt: "Which option is a placeholder?",
+      options: ["Option A", "Option B"],
     });
     expect(handles.get(2)).toMatchObject({ kind: "choice" });
     expect(handles.get(3)).toEqual({
@@ -173,12 +175,12 @@ describe("extractAssessment", () => {
         questionNumber: 1,
         type: "single_answer",
         question: "Which part of the diagram stores data?",
-        // An option shown only as an image gets a name the answer can refer to.
+        // An option shown only as an image is named by its number.
         options: ["Storage", "Image option 2"],
         images: [
           { url: "https://cdn.example/lifecycle.png", alt: "Lifecycle diagram" },
-          { url: "https://cdn.example/storage.png", alt: "", option: "Storage" },
-          { url: "data:image/png;base64,iVBORw0KGgo=", alt: "Box B", option: "Image option 2" },
+          { url: "https://cdn.example/storage.png", alt: "", option: 1 },
+          { url: "data:image/png;base64,iVBORw0KGgo=", alt: "Box B", option: 2 },
         ],
       },
     ]);

@@ -30,7 +30,7 @@ describe("background handlers", () => {
     const fetchStub = vi
       .fn<typeof fetch>()
       .mockResolvedValue(
-        geminiResponse(JSON.stringify({ answers: [{ questionNumber: 1, correctOptions: ["B"] }] })),
+        geminiResponse(JSON.stringify({ answers: [{ questionNumber: 1, optionNumbers: [2] }] })),
       );
     const router = createMessageRouter<BackgroundRequests>(
       createBackgroundHandlers({ fetch: fetchStub }),
@@ -41,7 +41,7 @@ describe("background handlers", () => {
       expect(router({ type: "solveQuestions", questions }, sender, resolve)).toBe(true);
     });
 
-    expect(reply).toEqual({ ok: true, data: [{ questionNumber: 1, correctOptions: ["B"] }] });
+    expect(reply).toEqual({ ok: true, data: [{ questionNumber: 1, optionNumbers: [2] }] });
     expect(String(fetchStub.mock.calls[0]?.[0])).toMatch(/gemini-3\.7-flash:generateContent$/);
     expect(await browser.storage.local.get(null)).toEqual({
       aiProvider: "gemini",
@@ -63,7 +63,7 @@ describe("background handlers", () => {
         vllm: { apiKey: "", model: "Qwen/Qwen3-8B", baseUrl: "http://gpu.lan:8000/v1" },
       },
     });
-    const answers = JSON.stringify({ answers: [{ questionNumber: 1, correctOptions: ["A"] }] });
+    const answers = JSON.stringify({ answers: [{ questionNumber: 1, optionNumbers: [1] }] });
     const fetchStub = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(JSON.stringify({ choices: [{ message: { content: answers } }] }), {
         status: 200,
@@ -72,7 +72,7 @@ describe("background handlers", () => {
 
     await expect(
       createBackgroundHandlers({ fetch: fetchStub }).solveQuestions({ questions }, sender),
-    ).resolves.toEqual([{ questionNumber: 1, correctOptions: ["A"] }]);
+    ).resolves.toEqual([{ questionNumber: 1, optionNumbers: [1] }]);
     expect(String(fetchStub.mock.calls[0]?.[0])).toBe("http://gpu.lan:8000/v1/chat/completions");
     expect(JSON.parse(String(fetchStub.mock.calls[0]?.[1]?.body)).model).toBe("Qwen/Qwen3-8B");
   });
@@ -86,7 +86,7 @@ describe("background handlers", () => {
   });
 
   it("asks with the saved reasoning effort, or medium when none the provider offers is saved", async () => {
-    const answers = JSON.stringify({ answers: [{ questionNumber: 1, correctOptions: ["A"] }] });
+    const answers = JSON.stringify({ answers: [{ questionNumber: 1, optionNumbers: [1] }] });
     const fetchStub = vi.fn<typeof fetch>(
       async () => new Response(JSON.stringify({ output_text: answers }), { status: 200 }),
     );
@@ -107,7 +107,7 @@ describe("background handlers", () => {
   });
 
   it("leaves thinking to a vLLM server's model until a level is saved", async () => {
-    const answers = JSON.stringify({ answers: [{ questionNumber: 1, correctOptions: ["A"] }] });
+    const answers = JSON.stringify({ answers: [{ questionNumber: 1, optionNumbers: [1] }] });
     const fetchStub = vi.fn<typeof fetch>(
       async () =>
         new Response(JSON.stringify({ choices: [{ message: { content: answers } }] }), {
@@ -153,7 +153,7 @@ describe("background handlers", () => {
         String(input) === imageUrl
           ? new Response(PNG)
           : geminiResponse(
-              JSON.stringify({ answers: [{ questionNumber: 1, correctOptions: ["B"] }] }),
+              JSON.stringify({ answers: [{ questionNumber: 1, optionNumbers: [2] }] }),
             ),
       );
 
@@ -162,7 +162,7 @@ describe("background handlers", () => {
           { questions: withImage },
           sender,
         ),
-      ).resolves.toEqual([{ questionNumber: 1, correctOptions: ["B"] }]);
+      ).resolves.toEqual([{ questionNumber: 1, optionNumbers: [2] }]);
 
       const [promptPart, ...imageParts] = JSON.parse(String(fetchStub.mock.calls.at(-1)?.[1]?.body))
         .contents[0].parts;
@@ -183,7 +183,7 @@ describe("background handlers", () => {
           deepseek: { apiKey: "k", model: "deepseek-v4-flash", verifiedAt: 1 },
         },
       });
-      const answers = JSON.stringify({ answers: [{ questionNumber: 1, correctOptions: ["A"] }] });
+      const answers = JSON.stringify({ answers: [{ questionNumber: 1, optionNumbers: [1] }] });
       const fetchStub = vi.fn<typeof fetch>().mockResolvedValue(
         new Response(JSON.stringify({ choices: [{ message: { content: answers } }] }), {
           status: 200,

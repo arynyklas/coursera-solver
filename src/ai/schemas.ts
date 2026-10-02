@@ -12,13 +12,19 @@ export const ANSWER_SCHEMA: JsonSchema = {
             type: "integer",
             description: "The questionNumber copied from the input question.",
           },
-          correctOptions: {
+          optionNumbers: {
             type: "array",
-            items: { type: "string" },
-            description: "Exact option text, or one generated response for a written question.",
+            items: { type: "integer" },
+            description:
+              "The number of each correct option of a single_answer or multiple_answer question; empty for other questions.",
+          },
+          text: {
+            type: "string",
+            description:
+              "The answer written for a text_input, essay or code_expression question; empty for choice questions.",
           },
         },
-        required: ["questionNumber", "correctOptions"],
+        required: ["questionNumber", "optionNumbers", "text"],
         additionalProperties: false,
       },
     },

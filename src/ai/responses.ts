@@ -13,7 +13,10 @@ type ChatCompletionResponse =
   | { choices?: { message?: { content?: unknown } }[] }
   | null
   | undefined;
-type RawAnswer = { questionNumber?: unknown; correctOptions?: unknown } | null | undefined;
+type RawAnswer =
+  | { questionNumber?: unknown; optionNumbers?: unknown; text?: unknown }
+  | null
+  | undefined;
 type ModelListResponse = { data?: unknown } | null | undefined;
 
 export function extractResponseText(providerId: ProviderId, data: unknown): string {
@@ -93,31 +96,32 @@ export function parseAndValidateAnswers(rawText: string, questions: Question[]):
     }
     seen.add(questionNumber);
 
-    const rawOptions = answer?.correctOptions;
-    if (!Array.isArray(rawOptions) || rawOptions.length === 0) {
-      throw new Error(`Question ${questionNumber} did not contain an answer.`);
-    }
-    const correctOptions = rawOptions.map((option) => {
-      const value = String(option).replace(/\r\n/g, "\n");
-      return question.type === "code_expression" ? value : value.trim();
-    });
-    if (correctOptions.some((option) => !option.trim())) {
-      throw new Error(`Question ${questionNumber} contained an empty answer.`);
-    }
-    if (question.type === "code_expression" && correctOptions.length !== 1) {
-      throw new Error(`Question ${questionNumber} must contain one complete code answer.`);
-    }
+    const missing = `Question ${questionNumber} did not contain an answer.`;
 
     if (question.type === "single_answer" || question.type === "multiple_answer") {
-      const availableOptions = new Set(question.options || []);
-      if (correctOptions.some((option) => !availableOptions.has(option))) {
-        throw new Error(
-          `Question ${questionNumber} returned option text that does not match the page.`,
-        );
+      const chosen = answer?.optionNumbers;
+      if (!Array.isArray(chosen) || chosen.length === 0) throw new Error(missing);
+      // A model answering without a schema may write a number as text.
+      const optionNumbers = chosen.map((value: unknown) =>
+        typeof value === "string" && /^\d+$/.test(value.trim()) ? Number(value) : value,
+      );
+      if (
+        !optionNumbers.every(
+          (value): value is number =>
+            typeof value === "number" &&
+            Number.isInteger(value) &&
+            value >= 1 &&
+            value <= question.options.length,
+        )
+      ) {
+        throw new Error(`Question ${questionNumber} chose an option that is not on the page.`);
       }
+      return { questionNumber, optionNumbers };
     }
 
-    return { questionNumber, correctOptions };
+    const text = String(answer?.text ?? "").replace(/\r\n/g, "\n");
+    if (!text.trim()) throw new Error(missing);
+    return { questionNumber, text: question.type === "code_expression" ? text : text.trim() };
   });
 
   if (validated.length !== questionMap.size) {

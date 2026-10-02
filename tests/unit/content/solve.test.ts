@@ -40,7 +40,7 @@ describe("solve runner", () => {
 
     const first = runner.start();
     expect(() => runner.start()).toThrow(SOLVE_BUSY_MESSAGE);
-    resolve([{ questionNumber: 1, correctOptions: ["x"] }]);
+    resolve([{ questionNumber: 1, text: "x" }]);
     await first.done;
     expect(() => runner.start()).not.toThrow(SOLVE_BUSY_MESSAGE);
   });
@@ -62,8 +62,8 @@ describe("solve runner", () => {
   it("walks through the progress cards and ends on an auto-hiding success", async () => {
     document.body.innerHTML = TEXT_QUESTION + CHOICE_QUESTION;
     const { runner, shows } = setup(async () => [
-      { questionNumber: 1, correctOptions: ["answer"] },
-      { questionNumber: 2, correctOptions: ["Beta"] },
+      { questionNumber: 1, text: "answer" },
+      { questionNumber: 2, optionNumbers: [2] },
     ]);
 
     await runner.start().done;
@@ -84,7 +84,7 @@ describe("solve runner", () => {
 
   it("uses the singular for one question", async () => {
     document.body.innerHTML = TEXT_QUESTION;
-    const { runner, shows } = setup(async () => [{ questionNumber: 1, correctOptions: ["a"] }]);
+    const { runner, shows } = setup(async () => [{ questionNumber: 1, text: "a" }]);
 
     await runner.start().done;
 
@@ -95,7 +95,7 @@ describe("solve runner", () => {
     document.body.innerHTML = `<section data-testid="part-Submission_TextQuestion">${prompt(
       'Name the diagram. <img src="https://cdn.example/a.png" alt=""><img src="https://cdn.example/b.png" alt="">',
     )}<input type="text"></section>`;
-    const { runner, shows } = setup(async () => [{ questionNumber: 1, correctOptions: ["a"] }]);
+    const { runner, shows } = setup(async () => [{ questionNumber: 1, text: "a" }]);
 
     await runner.start().done;
 
@@ -105,8 +105,8 @@ describe("solve runner", () => {
   it("ends on an error card listing the failed question", async () => {
     document.body.innerHTML = TEXT_QUESTION + CHOICE_QUESTION;
     const { runner, last } = setup(async () => [
-      { questionNumber: 1, correctOptions: ["answer"] },
-      { questionNumber: 2, correctOptions: ["Gamma"] },
+      { questionNumber: 1, text: "answer" },
+      { questionNumber: 2, optionNumbers: [3] },
     ]);
 
     await runner.start().done;
@@ -120,7 +120,7 @@ describe("solve runner", () => {
 
   it("counts parser issues as problems even without apply failures", async () => {
     document.body.innerHTML = TEXT_QUESTION + UNSUPPORTED_QUESTION;
-    const requestAnswers = vi.fn(async () => [{ questionNumber: 1, correctOptions: ["answer"] }]);
+    const requestAnswers = vi.fn(async () => [{ questionNumber: 1, text: "answer" }]);
     const { runner, last } = setup(requestAnswers);
 
     await runner.start().done;

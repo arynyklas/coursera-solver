@@ -42,7 +42,12 @@ export async function extractAssessment(
     };
     if (handle.kind !== "code") {
       questions.push(question);
-      handles.set(questionNumber, { kind: handle.kind, block: handle.block, prompt });
+      handles.set(
+        questionNumber,
+        handle.kind === "choice"
+          ? { kind: "choice", block: handle.block, prompt, options }
+          : { kind: handle.kind, block: handle.block, prompt },
+      );
       continue;
     }
 

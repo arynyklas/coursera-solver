@@ -38,30 +38,65 @@ describe("extractResponseText", () => {
 describe("parseAndValidateAnswers", () => {
   // Ported from tests/ai-providers.test.js:72-84 in v1.1.0 (c2f8b71).
   it("normalizes and validates structured quiz answers", () => {
-    const questions = [question(1, "single_answer", ["A", "B"]), question(2, "text_input", [])];
-    const raw =
-      '```json\n{"answers":[{"questionNumber":2,"correctOptions":["Response"]},{"questionNumber":1,"correctOptions":["B"]}]}\n```';
+    const questions = [
+      question(1, "single_answer", ["A", "B"]),
+      question(2, "text_input", []),
+      question(3, "code_expression", []),
+    ];
+    const raw = `\`\`\`json\n${JSON.stringify({
+      answers: [
+        { questionNumber: 2, optionNumbers: [], text: " Response " },
+        { questionNumber: 1, optionNumbers: [2], text: "" },
+        // Code keeps its indentation.
+        { questionNumber: 3, optionNumbers: [], text: "  x = 1\r\n" },
+      ],
+    })}\n\`\`\``;
 
     expect(parseAndValidateAnswers(raw, questions)).toEqual([
-      { questionNumber: 1, correctOptions: ["B"] },
-      { questionNumber: 2, correctOptions: ["Response"] },
+      { questionNumber: 1, optionNumbers: [2] },
+      { questionNumber: 2, text: "Response" },
+      { questionNumber: 3, text: "  x = 1\n" },
     ]);
   });
 
   // Ported from tests/ai-providers.test.js:86-92 in v1.1.0 (c2f8b71).
   it("accepts the legacy top-level answer array", () => {
     const questions = [question(1, "single_answer", ["A"])];
-    const raw = JSON.stringify([{ questionNumber: 1, correctOptions: ["A"] }]);
+    const raw = JSON.stringify([{ questionNumber: 1, optionNumbers: [1], text: "" }]);
     expect(parseAndValidateAnswers(raw, questions)).toEqual([
-      { questionNumber: 1, correctOptions: ["A"] },
+      { questionNumber: 1, optionNumbers: [1] },
+    ]);
+  });
+
+  it("reads option numbers that a model without a schema wrote as text", () => {
+    const questions = [question(1, "multiple_answer", ["A", "B", "C"])];
+    const raw = JSON.stringify({ answers: [{ questionNumber: 1, optionNumbers: ["1", 3] }] });
+    expect(parseAndValidateAnswers(raw, questions)).toEqual([
+      { questionNumber: 1, optionNumbers: [1, 3] },
     ]);
   });
 
   // Ported from tests/ai-providers.test.js:94-98 in v1.1.0 (c2f8b71).
-  it("rejects option text that does not exist on the page", () => {
+  it("rejects an option number that is not on the page", () => {
     const questions = [question(1, "multiple_answer", ["A", "B"])];
-    const raw = JSON.stringify({ answers: [{ questionNumber: 1, correctOptions: ["C"] }] });
-    expect(() => parseAndValidateAnswers(raw, questions)).toThrow(/does not match the page/);
+    for (const optionNumbers of [[3], [0], [1.5], ["B"], [true]]) {
+      const raw = JSON.stringify({ answers: [{ questionNumber: 1, optionNumbers, text: "" }] });
+      expect(() => parseAndValidateAnswers(raw, questions)).toThrow(
+        "Question 1 chose an option that is not on the page.",
+      );
+    }
+  });
+
+  it("rejects a choice without option numbers and a written answer without text", () => {
+    const answer = (optionNumbers: unknown[], text: string) =>
+      JSON.stringify({ answers: [{ questionNumber: 1, optionNumbers, text }] });
+
+    expect(() =>
+      parseAndValidateAnswers(answer([], "A"), [question(1, "single_answer", ["A"])]),
+    ).toThrow("Question 1 did not contain an answer.");
+    expect(() =>
+      parseAndValidateAnswers(answer([1], " "), [question(1, "text_input", [])]),
+    ).toThrow("Question 1 did not contain an answer.");
   });
 
   // Ported from tests/ai-providers.test.js:100-116 in v1.1.0 (c2f8b71).
@@ -70,7 +105,7 @@ describe("parseAndValidateAnswers", () => {
 
     expect(() =>
       parseAndValidateAnswers(
-        JSON.stringify({ answers: [{ questionNumber: 1, correctOptions: ["A"] }] }),
+        JSON.stringify({ answers: [{ questionNumber: 1, optionNumbers: [], text: "A" }] }),
         questions,
       ),
     ).toThrow(/did not answer every question/);
@@ -78,8 +113,8 @@ describe("parseAndValidateAnswers", () => {
       parseAndValidateAnswers(
         JSON.stringify({
           answers: [
-            { questionNumber: 1, correctOptions: ["A"] },
-            { questionNumber: 1, correctOptions: ["B"] },
+            { questionNumber: 1, optionNumbers: [], text: "A" },
+            { questionNumber: 1, optionNumbers: [], text: "B" },
           ],
         }),
         questions,

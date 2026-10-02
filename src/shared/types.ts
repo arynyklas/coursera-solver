@@ -23,8 +23,8 @@ export interface QuestionImage {
   /** An `https:` or `data:image/` URL; other images are left out. */
   url: string;
   alt: string;
-  /** The option the image belongs to; absent for images in the question itself. */
-  option?: string;
+  /** The number of the option the image belongs to, counted from 1 in `Question.options`; absent for images in the question itself. */
+  option?: number;
 }
 
 export interface Question {
@@ -38,10 +38,13 @@ export interface Question {
   images?: QuestionImage[];
 }
 
-export interface Answer {
-  questionNumber: number;
-  correctOptions: string[];
-}
+/**
+ * The answer to one question: the numbers of the chosen options of a choice question, counted
+ * from 1 in `Question.options`, or the text to write into any other question.
+ */
+export type Answer =
+  | { questionNumber: number; optionNumbers: number[] }
+  | { questionNumber: number; text: string };
 
 export type ParserIssueCode =
   | "missing-prompt"
@@ -146,10 +149,12 @@ export interface CourseRequirementsResult {
   summary: RequirementsSummary;
 }
 
-// A handle identifies a question block and the prompt parsed at extraction. Applying re-parses the
-// block for fresh nodes and writes only while it still shows that prompt and kind.
+// A handle identifies a question block and the prompt parsed at extraction, and for a choice the
+// options read then, which an answer's option numbers count. Applying re-parses the block for
+// fresh nodes and writes only while it still shows that prompt and kind, and those options.
 export type QuestionHandle =
-  | { kind: "choice" | "text" | "essay"; block: HTMLElement; prompt: string }
+  | { kind: "choice"; block: HTMLElement; prompt: string; options: string[] }
+  | { kind: "text" | "essay"; block: HTMLElement; prompt: string }
   | { kind: "code"; block: HTMLElement; prompt: string; modelUri: string; expectedValue: string };
 
 export interface ExtractedAssessment {

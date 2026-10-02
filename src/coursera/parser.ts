@@ -126,8 +126,11 @@ export function optionText(option: Element): string {
   return textNode ? visibleText(textNode) : "";
 }
 
-/** The images in `node` that can be sent to an AI provider: `https:` and `data:image/` URLs. */
-function imagesIn(node: Element | null, option?: string): QuestionImage[] {
+/**
+ * The images in `node` that can be sent to an AI provider: `https:` and `data:image/` URLs. An
+ * option's images carry its number in the options.
+ */
+function imagesIn(node: Element | null, option?: number): QuestionImage[] {
   const images: QuestionImage[] = [];
   for (const image of node?.querySelectorAll("img") ?? []) {
     const url = image.currentSrc || image.src;
@@ -144,14 +147,15 @@ function classify(block: HTMLElement): Pick<ParsedBlock, "type" | "options" | "h
 
   const choices: { text: string; input: HTMLInputElement }[] = [];
   const images: QuestionImage[] = [];
-  block.querySelectorAll(SELECTORS.option).forEach((option, index) => {
+  block.querySelectorAll(SELECTORS.option).forEach((option) => {
     const input = option.querySelector<HTMLInputElement>(SELECTORS.optionInput);
-    // An option shown only as an image is named by its position, which every re-parse repeats.
+    // An option shown only as an image is named by its number, which every re-parse repeats.
     const text =
-      optionText(option) || (option.querySelector("img") ? `Image option ${index + 1}` : "");
+      optionText(option) ||
+      (option.querySelector("img") ? `Image option ${choices.length + 1}` : "");
     if (!input || !text) return;
     choices.push({ text, input });
-    images.push(...imagesIn(option, text));
+    images.push(...imagesIn(option, choices.length));
   });
   const firstChoice = choices[0];
   if (firstChoice) {

@@ -41,13 +41,19 @@ function currentDraft(handle: QuestionHandle, questionNumber: number): HandleDra
   return fresh.handle;
 }
 
-// F3: resolve every answer against the options' current text before clicking anything.
-function applyChoice(draft: ChoiceDraft, correctOptions: string[]): string | null {
-  const targets: HTMLInputElement[] = [];
-  for (const answer of correctOptions) {
-    const match = draft.options.find(({ text }) => text === answer);
-    if (!match) return "The selected option no longer matches the page.";
-    targets.push(match.input);
+// F3: check every chosen option before clicking anything. The numbers count the options read at
+// extraction, so they apply only while the page shows those options, in that order.
+function applyChoice(
+  draft: ChoiceDraft,
+  extracted: string[],
+  optionNumbers: number[],
+): string | null {
+  const unchanged =
+    draft.options.length === extracted.length &&
+    draft.options.every(({ text }, index) => text === extracted[index]);
+  const targets = optionNumbers.flatMap((number) => draft.options[number - 1]?.input ?? []);
+  if (!unchanged || targets.length !== optionNumbers.length) {
+    return "The selected option no longer matches the page.";
   }
 
   for (const input of targets) if (!input.checked) input.click();
@@ -108,23 +114,22 @@ export async function applyAnswers(
 ): Promise<ApplyResult> {
   const result: ApplyResult = { applied: [], failures: [] };
 
-  for (const { questionNumber, correctOptions } of answers) {
-    const [text] = correctOptions;
-    // content.js:225 in v1.1.0 (c2f8b71) skips answers without options.
-    if (text === undefined) continue;
-
+  for (const answer of answers) {
+    const { questionNumber } = answer;
     const handle = handles.get(questionNumber);
     const draft = handle && currentDraft(handle, questionNumber);
     let failure: string | null = STALE_QUESTION;
-    if (handle?.kind === "choice" && draft?.kind === "choice") {
-      failure = applyChoice(draft, correctOptions);
+    if ("optionNumbers" in answer) {
+      if (handle?.kind === "choice" && draft?.kind === "choice") {
+        failure = applyChoice(draft, handle.options, answer.optionNumbers);
+      }
     } else if (handle?.kind === "text" && draft?.kind === "text") {
-      setNativeValue(draft.field, text);
+      setNativeValue(draft.field, answer.text);
       failure = null;
     } else if (handle?.kind === "essay" && draft?.kind === "essay") {
-      failure = await applyEssay(draft.editor, text, options.slateDelayMs ?? 50);
+      failure = await applyEssay(draft.editor, answer.text, options.slateDelayMs ?? 50);
     } else if (handle?.kind === "code" && draft?.kind === "code") {
-      failure = await applyCode(handle, text, monaco);
+      failure = await applyCode(handle, answer.text, monaco);
     }
 
     if (failure) result.failures.push({ questionNumber, message: failure });

@@ -14,6 +14,9 @@ export default defineConfig({
     permissions: ["storage"],
     host_permissions: [
       "*://*.coursera.org/*",
+      // Coursera serves quiz images from CloudFront, and some distributions send no CORS headers,
+      // so the background can read those images only with host access.
+      "https://*.cloudfront.net/*",
       "https://generativelanguage.googleapis.com/*",
       "https://api.openai.com/*",
       "https://api.anthropic.com/*",

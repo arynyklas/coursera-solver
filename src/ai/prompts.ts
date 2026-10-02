@@ -1,5 +1,5 @@
 import type { DialogueMessage, Question } from "@/shared/types";
-import { imageLabel } from "./images";
+import { labelImages } from "./images";
 
 const IMAGE_INSTRUCTIONS = `
 
@@ -17,16 +17,15 @@ export function createQuizPrompt(
   imageNotes: ReadonlyMap<string, string> = new Map(),
 ): string {
   const hasImages = questions.some(({ images }) => images?.length);
-  const input = questions.map(({ options, images, ...question }) => ({
+  const input = labelImages(questions).map(({ options, images, ...question }) => ({
     ...question,
     // Answers choose options by these numbers; a key each keeps one line per option.
     ...(options.length > 0
       ? { options: Object.fromEntries(options.map((text, index) => [index + 1, text])) }
       : {}),
-    ...(images?.length
+    ...(images.length > 0
       ? {
-          images: images.map(({ alt, option }, index) => {
-            const label = imageLabel(question.questionNumber, index);
+          images: images.map(({ label, alt, option }) => {
             const note = imageNotes.get(label);
             return {
               label,

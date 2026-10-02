@@ -36,4 +36,27 @@ describe("createQuizPrompt", () => {
       { questionNumber: 2, type: "text_input", question: "Name it." },
     ]);
   });
+
+  it("lists a picture several questions show under the label it is sent with", () => {
+    const run = { url: "https://d396qusza40orc.cloudfront.net/HW2_L1.png", alt: "" };
+    const input = promptInput([
+      { questionNumber: 9, type: "numeric_input", question: "At P1?", options: [], images: [run] },
+      { questionNumber: 11, type: "numeric_input", question: "At P2?", options: [], images: [run] },
+    ]);
+
+    expect(input).toEqual([
+      {
+        questionNumber: 9,
+        type: "numeric_input",
+        question: "At P1?",
+        images: [{ label: "Question 9 image 1" }],
+      },
+      {
+        questionNumber: 11,
+        type: "numeric_input",
+        question: "At P2?",
+        images: [{ label: "Question 9 image 1" }],
+      },
+    ]);
+  });
 });

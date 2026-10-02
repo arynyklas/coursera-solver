@@ -156,4 +156,25 @@ describe("loadQuestionImages", () => {
       new Map([["Question 1 image 2", "would make the request too large"]]),
     );
   });
+
+  it("sends a picture several questions show once, under the label it first had", async () => {
+    // Homework diagrams: one run diagram serves several questions in a row.
+    const fetch = serve({ [`${CDN}/run.png`]: PNG, [`${CDN}/other.png`]: JPEG });
+
+    const { attachments, notes } = await loadQuestionImages(
+      [
+        question(9, [`${CDN}/run.png`]),
+        question(10, [`${CDN}/other.png`]),
+        question(11, [`${CDN}/run.png`]),
+      ],
+      fetch,
+    );
+
+    expect(attachments.map(({ label }) => label)).toEqual([
+      "Question 9 image 1",
+      "Question 10 image 1",
+    ]);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(notes).toEqual(new Map());
+  });
 });

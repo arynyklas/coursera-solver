@@ -25,6 +25,8 @@ const manifest = JSON.parse(readFileSync(".output/chrome-mv3/manifest.json", "ut
 const COURSE_MATCHES = ["*://*.coursera.org/learn/*"];
 const HOSTS = [
   "*://*.coursera.org/*",
+  // Coursera's image CDN: some distributions send no CORS headers, so reading them takes host access.
+  "https://*.cloudfront.net/*",
   "https://generativelanguage.googleapis.com/*",
   "https://api.openai.com/*",
   "https://api.anthropic.com/*",
@@ -49,7 +51,7 @@ describe("built manifest", () => {
     expect(manifest.optional_permissions ?? []).toEqual([]);
   });
 
-  it("grants exactly Coursera and the seven hosted AI provider origins", () => {
+  it("grants exactly Coursera, its CloudFront image hosts and the seven hosted AI provider origins", () => {
     expect([...(manifest.host_permissions ?? [])].sort()).toEqual([...HOSTS].sort());
   });
 

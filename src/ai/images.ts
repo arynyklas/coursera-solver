@@ -1,4 +1,4 @@
-import type { Question } from "@/shared/types";
+import type { Question, QuestionImage } from "@/shared/types";
 
 /** An image sent inline with a quiz request, introduced in the prompt by its label. */
 export interface ImageAttachment {
@@ -15,16 +15,36 @@ export interface ImageAttachment {
  */
 export const IMAGE_LIMITS = { count: 16, bytes: 3.5 * 1024 * 1024, totalBytes: 12 * 1024 * 1024 };
 
-/** The name an image goes by in the prompt and in the request that carries it. */
-export function imageLabel(questionNumber: number, index: number): string {
-  return `Question ${questionNumber} image ${index + 1}`;
+/** An image with the name it goes by in the prompt and in the request that carries it. */
+export interface LabelledImage extends QuestionImage {
+  label: string;
+}
+
+/**
+ * The questions with labelled images. A label names the question and position a picture first
+ * appears at: shown again under the same URL, as one diagram serving several questions is, it
+ * keeps that label, so a request carries it once.
+ */
+export function labelImages(
+  questions: Question[],
+): (Omit<Question, "images"> & { images: LabelledImage[] })[] {
+  const labels = new Map<string, string>();
+  return questions.map(({ images = [], ...question }) => ({
+    ...question,
+    images: images.map((image, index) => {
+      const label =
+        labels.get(image.url) ?? `Question ${question.questionNumber} image ${index + 1}`;
+      labels.set(image.url, label);
+      return { ...image, label };
+    }),
+  }));
 }
 
 /** Every image of `questions` noted with one reason, for a request that carries none of them. */
 export function unattachedImages(questions: Question[], reason: string): Map<string, string> {
   return new Map(
-    questions.flatMap(({ questionNumber, images = [] }) =>
-      images.map((_, index): [string, string] => [imageLabel(questionNumber, index), reason]),
+    labelImages(questions).flatMap(({ images }) =>
+      images.map(({ label }): [string, string] => [label, reason]),
     ),
   );
 }
@@ -81,9 +101,12 @@ export async function loadQuestionImages(
   fetch: typeof globalThis.fetch,
   limits = IMAGE_LIMITS,
 ): Promise<{ attachments: ImageAttachment[]; notes: Map<string, string> }> {
-  const entries = questions.flatMap(({ questionNumber, images = [] }) =>
-    images.map(({ url }, index) => ({ label: imageLabel(questionNumber, index), url })),
-  );
+  // A picture several questions show is fetched and attached once, under its first label.
+  const sources = new Map<string, string>();
+  for (const { images } of labelImages(questions)) {
+    for (const { label, url } of images) sources.set(label, url);
+  }
+  const entries = [...sources].map(([label, url]) => ({ label, url }));
   const loaded = await Promise.all(entries.map(({ url }) => readImage(fetch, url)));
 
   const attachments: ImageAttachment[] = [];

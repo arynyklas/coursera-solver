@@ -113,7 +113,7 @@ describe("extractAssessment", () => {
       <section data-testid="part-Submission_Question">
         <div id="prompt-1"><div data-testid="cml-viewer">Unknown widget</div></div>
         <input type="hidden" value="h">
-        <input type="number" value="1">
+        <input type="range" value="1">
       </section>`;
 
     const result = await extractAssessment(document, { read: async () => "" });

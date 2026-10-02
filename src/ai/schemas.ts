@@ -21,7 +21,7 @@ export const ANSWER_SCHEMA: JsonSchema = {
           text: {
             type: "string",
             description:
-              "The answer written for a text_input, essay or code_expression question; empty for choice questions.",
+              "The answer written for a text_input, numeric_input, essay or code_expression question; empty for choice questions.",
           },
         },
         required: ["questionNumber", "optionNumbers", "text"],

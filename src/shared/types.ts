@@ -15,6 +15,7 @@ export type SupportedQuestionType =
   | "single_answer"
   | "multiple_answer"
   | "text_input"
+  | "numeric_input"
   | "essay"
   | "code_expression";
 
@@ -154,7 +155,7 @@ export interface CourseRequirementsResult {
 // fresh nodes and writes only while it still shows that prompt and kind, and those options.
 export type QuestionHandle =
   | { kind: "choice"; block: HTMLElement; prompt: string; options: string[] }
-  | { kind: "text" | "essay"; block: HTMLElement; prompt: string }
+  | { kind: "text" | "number" | "essay"; block: HTMLElement; prompt: string }
   | { kind: "code"; block: HTMLElement; prompt: string; modelUri: string; expectedValue: string };
 
 export interface ExtractedAssessment {

@@ -11,6 +11,8 @@ export const SELECTORS = {
   legacyBlock: ".css-1erl2aq, .css-12u8wr5",
   option: ".rc-Option",
   writtenInput: 'input[type="text"], input:not([type]), textarea:not(.inputarea)',
+  /** The field of a Coursera numeric question. */
+  numberInput: 'input[type="number"]',
   optionText: '[data-testid="cml-viewer"]',
   optionInput: 'input[type="radio"], input[type="checkbox"]',
   slateEditor: '[data-slate-editor="true"]',
@@ -26,6 +28,7 @@ export type HandleDraft =
       options: { text: string; input: HTMLInputElement }[];
     }
   | { kind: "text"; block: HTMLElement; field: HTMLInputElement | HTMLTextAreaElement }
+  | { kind: "number"; block: HTMLElement; field: HTMLInputElement }
   | { kind: "essay"; block: HTMLElement; editor: HTMLElement }
   | { kind: "code"; block: HTMLElement }
   | { kind: "unsupported"; block: HTMLElement };
@@ -176,6 +179,16 @@ function classify(block: HTMLElement): Pick<ParsedBlock, "type" | "options" | "h
   const field = block.querySelector<HTMLInputElement | HTMLTextAreaElement>(SELECTORS.writtenInput);
   if (field) {
     return { type: "text_input", options: [], handle: { kind: "text", block, field }, images: [] };
+  }
+
+  const numberField = block.querySelector<HTMLInputElement>(SELECTORS.numberInput);
+  if (numberField) {
+    return {
+      type: "numeric_input",
+      options: [],
+      handle: { kind: "number", block, field: numberField },
+      images: [],
+    };
   }
 
   return { type: "unknown", options: [], handle: { kind: "unsupported", block }, images: [] };

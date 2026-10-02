@@ -35,11 +35,11 @@ afterEach(() => {
 
 describe("applyAnswers handles (F2)", () => {
   it("never writes into a block the parser did not classify", async () => {
-    // Guards content.js:271 in v1.1.0 (c2f8b71), which overwrote hidden/number inputs.
+    // Guards content.js:271 in v1.1.0 (c2f8b71), which wrote into any input of a block, hidden ones too.
     document.body.innerHTML = `
       <section data-testid="part-Submission_TextQuestion">${prompt("First")}<input id="first" type="text"></section>
       <section data-testid="part-Submission_Question">${prompt("Second")}
-        <input id="hidden" type="hidden" value="h"><input id="number" type="number" value="1">
+        <input id="hidden" type="hidden" value="h"><input id="range" type="range" value="1">
       </section>`;
     const { handles } = await extract();
 
@@ -58,7 +58,7 @@ describe("applyAnswers handles (F2)", () => {
     });
     expect(byId<HTMLInputElement>("first").value).toBe("answer");
     expect(byId<HTMLInputElement>("hidden").value).toBe("h");
-    expect(byId<HTMLInputElement>("number").value).toBe("1");
+    expect(byId<HTMLInputElement>("range").value).toBe("1");
   });
 
   it("fails a question whose block left the page after extraction", async () => {
@@ -337,6 +337,48 @@ describe("applyAnswers text fields (F4)", () => {
     await applyAnswers([{ questionNumber: 1, text: "long answer" }], handles, noMonaco);
 
     expect(byId<HTMLTextAreaElement>("field").value).toBe("long answer");
+  });
+});
+
+describe("applyAnswers numbers", () => {
+  // The field a Coursera numeric question renders.
+  const NUMERIC_QUESTION = `<section data-testid="part-Submission_NumericQuestion">${prompt("How many hops?")}<input id="field" type="number" placeholder="Enter answer here"></section>`;
+
+  it("writes the number like typed text", async () => {
+    document.body.innerHTML = NUMERIC_QUESTION;
+    const { handles } = await extract();
+    const field = byId<HTMLInputElement>("field");
+    const events: string[] = [];
+    field.addEventListener("input", (event) => events.push(event.type));
+    field.addEventListener("change", (event) => events.push(event.type));
+
+    const result = await applyAnswers([{ questionNumber: 1, text: "-0.25" }], handles, noMonaco);
+
+    expect(result).toEqual({ applied: [1], failures: [] });
+    expect(field.value).toBe("-0.25");
+    expect(events).toEqual(["input", "change"]);
+  });
+
+  it("leaves the field as it was when the answer is not a number", async () => {
+    document.body.innerHTML = NUMERIC_QUESTION;
+    const { handles } = await extract();
+    const field = byId<HTMLInputElement>("field");
+    field.value = "5";
+    const events: string[] = [];
+    field.addEventListener("input", (event) => events.push(event.type));
+
+    const result = await applyAnswers(
+      [{ questionNumber: 1, text: "121 messages" }],
+      handles,
+      noMonaco,
+    );
+
+    expect(result).toEqual({
+      applied: [],
+      failures: [{ questionNumber: 1, message: "The AI answer is not a number." }],
+    });
+    expect(field.value).toBe("5");
+    expect(events).toEqual([]);
   });
 });
 

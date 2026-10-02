@@ -49,6 +49,7 @@ OUTPUT REQUIREMENTS:
 - Each answer object must contain exactly "questionNumber", "optionNumbers" and "text".
 - For single_answer and multiple_answer questions, put the number of each correct option (its key in "options") in "optionNumbers" (one number for single_answer) and leave "text" empty.
 - For text_input questions, put one concise, direct answer in "text" and leave "optionNumbers" empty.
+- For numeric_input questions, put only the number in "text": digits with an optional minus sign and decimal point, without units, words or thousands separators.
 - For essay questions, put one complete response that follows the question's requested length and constraints in "text".
 - For code_expression questions, use the supplied language and currentCode to put the complete corrected editor content in "text".
 - Preserve required function names, surrounding code, comments, and provided test calls in code_expression answers.

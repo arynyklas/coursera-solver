@@ -13,6 +13,12 @@ type CodeHandle = Extract<QuestionHandle, { kind: "code" }>;
 
 const STALE_QUESTION = "The question is no longer on the page.";
 
+/**
+ * A valid floating-point number in HTML's terms (`-12`, `0.5`, `.5`, `1e3`): the only value a
+ * number field keeps. The field would blank anything else, so it is never written.
+ */
+const VALID_NUMBER = /^-?(\d+(\.\d+)?|\.\d+)([eE][-+]?\d+)?$/;
+
 // Ported from content.js:208-212 in v1.1.0 (c2f8b71).
 export function cleanCodeAnswer(value: string): string {
   const fenced = value.match(/^\s*```(?:[a-z0-9_+-]+)?\s*\r?\n([\s\S]*?)\r?\n```\s*$/i);
@@ -126,6 +132,9 @@ export async function applyAnswers(
     } else if (handle?.kind === "text" && draft?.kind === "text") {
       setNativeValue(draft.field, answer.text);
       failure = null;
+    } else if (handle?.kind === "number" && draft?.kind === "number") {
+      failure = VALID_NUMBER.test(answer.text) ? null : "The AI answer is not a number.";
+      if (!failure) setNativeValue(draft.field, answer.text);
     } else if (handle?.kind === "essay" && draft?.kind === "essay") {
       failure = await applyEssay(draft.editor, answer.text, options.slateDelayMs ?? 50);
     } else if (handle?.kind === "code" && draft?.kind === "code") {

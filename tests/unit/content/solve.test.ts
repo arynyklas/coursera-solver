@@ -12,7 +12,7 @@ const CHOICE_QUESTION = `<section data-testid="part-Submission_MultipleChoiceQue
   <label class="rc-Option"><input type="radio" name="q"><span data-testid="cml-viewer">Alpha</span></label>
   <label class="rc-Option"><input type="radio" name="q"><span data-testid="cml-viewer">Beta</span></label>
 </section>`;
-const UNSUPPORTED_QUESTION = `<section data-testid="part-Submission_Question">${prompt("Odd.")}<input type="number"></section>`;
+const UNSUPPORTED_QUESTION = `<section data-testid="part-Submission_Question">${prompt("Odd.")}<input type="range"></section>`;
 
 function setup(requestAnswers: (questions: Question[]) => Promise<Answer[]>) {
   const shows: BannerContent[] = [];

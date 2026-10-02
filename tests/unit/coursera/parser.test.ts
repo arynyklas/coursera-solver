@@ -209,15 +209,16 @@ describe("question handles", () => {
     expect(parsed?.handle.kind === "essay" && parsed.handle.editor).toBe(byId("slate"));
   });
 
-  it("marks blocks with only hidden and number inputs as unsupported", () => {
+  it("points numeric handles at the number field, the one a Coursera numeric question renders", () => {
     const block = onlyBlock(
-      `${prompt("No writable field")}<input type="hidden" value="h"><input type="number" value="1">`,
+      `${prompt("How many hops?")}<input type="hidden" value="h"><input id="field" type="number">`,
     );
     const parsed = parseQuestionBlock(block, 1);
 
-    expect(parsed?.type).toBe("unknown");
-    expect(parsed?.handle.kind).toBe("unsupported");
-    expect(parsed?.handle.block).toBe(block);
+    expect(parsed?.type).toBe("numeric_input");
+    if (parsed?.handle.kind !== "number") throw new Error("expected a number handle");
+    expect(parsed.handle.block).toBe(block);
+    expect(parsed.handle.field).toBe(byId("field"));
   });
 
   it("gives code blocks a code handle before any option check", () => {
